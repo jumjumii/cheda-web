@@ -28,7 +28,7 @@
   <a href="#daily">데일리리포트</a>
   <a href="#rocket">쿠팡 로켓재고</a>
   <span class="sp"></span>
-  <button onclick="lockNow()">🔒 잠그기</button>
+  <button onclick="lockNow()">로그아웃</button>
 </nav>
 <iframe id="view" title="화면"></iframe>
 <div id="lk" hidden><form>
@@ -43,7 +43,7 @@
 // 메뉴 = 같은 사이트 안의 화면들. 공유저장 설정(시트 주소·비밀값)은 모든 화면이 같이 쓴다(localStorage 'rt_db').
 const PAGES = { realtime: 'realtime/index.html', daily: 'daily.html', rocket: 'rocket.html' };
 // 잠금: 공유저장 주소·비밀값은 잠금.enc 에 비밀번호로 잠겨 있다(AES-256-GCM, PBKDF2 25만 번 — 잠금만들기.py).
-// 한 번 열면 이 브라우저가 기억한다. 🔒 잠그기 = 잊기.
+// 한 번 열면 이 브라우저가 기억한다. 로그아웃 = 잊기.
 const opened = () => { try { const c = JSON.parse(localStorage.getItem('rt_db') || '{}'); return c.url && c.token; } catch (e) { return false; } };
 async function unlock(pw) {
   const r = await fetch('잠금.enc', { cache: 'no-store' }); if (!r.ok) throw new Error('잠금 파일 없음');
