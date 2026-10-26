@@ -6463,6 +6463,27 @@ function abCalcFromRow(bk,row,idx){
   return {ilso,jarye,chung};
 }
 function abCalc(bk,idx){ return abCalcFromRow(bk,abState[bk][idx],idx); }
+// ⚠ 예산이 예상과 너무 다르면(2026-10-26 사용자 요청): 지난 기록의 (예산−예산차감) + 그때 충전금 − 그 뒤 사용액(일소진×경과일)
+//   = 지금 있어야 할 잔여예산. 실제(예산−예산차감)와 100만원·30% 넘게 다르면 표시. 충전금은 실제로 들어갔다고 가정.
+function abBudgetWarn(bk,idx){
+  const cur=abState[bk]&&abState[bk][idx]; if(!cur||!abGetVal(cur.budget)) return null;
+  let pd=null, prev=null;
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i); if(!k||!k.startsWith('ab_state_')) continue;
+    const d=k.slice(9); if(d>=abDate||(pd&&d<=pd)) continue;
+    try{ const r=(JSON.parse(localStorage.getItem(k))[bk]||[])[idx]; if(r&&abGetVal(r.budget)){ pd=d; prev=r; } }catch{}
+  }
+  if(!prev) return null;
+  const days=Math.round((new Date(abDate+'T00:00:00')-new Date(pd+'T00:00:00'))/864e5); if(days<1||days>14) return null;
+  const daily=(abGetVal(cur.burn3)||abGetVal(prev.burn3))/3;
+  const charged=abCalcFromRow(bk,prev,idx).chung;
+  const exp=abGetVal(prev.budget)-abGetVal(prev.budgetMinus)+charged-daily*days;
+  const act=abGetVal(cur.budget)-abGetVal(cur.budgetMinus), diff=act-exp;
+  if(Math.abs(diff)<=Math.max(1000000, Math.abs(exp)*0.3)) return null;
+  const f=n=>Math.round(n).toLocaleString('ko-KR');
+  return {badge:`⚠ 예상 ${f(exp)} · ${diff>0?'+':''}${f(diff)}`,
+          title:`${pd} 잔여 ${f(abGetVal(prev.budget)-abGetVal(prev.budgetMinus))} + 충전 ${f(charged)} − 사용 ${f(daily)}×${days}일 = 예상 ${f(exp)}\n지금(예산−예산차감) ${f(act)} → 차이 ${f(diff)}\n(충전을 안 했거나 금액이 달랐으면 차이가 날 수 있어요)`};
+}
 
 function abFmt(n){ return Number(n||0).toLocaleString('ko-KR'); }
 
@@ -6525,7 +6546,7 @@ function renderABPanel(){
              + (u.badge ? `<div class="${wcls}" title="${u.title}">${u.badge}</div>` : ''); })()}</td>
       <td>${inp('jungam',r.jungam)}</td>
       <td class="tc" id="aiv-${bk}-${idx}-i">${abFmt(c.ilso)}</td>
-      <td>${inp('budget',r.budget)}</td>
+      <td>${inp('budget',r.budget)}${(()=>{ const w=abBudgetWarn(bk,idx); return w?`<div class="ab-rdwarn ab-rdwarn-zero" title="${w.title}">${w.badge}</div>`:''; })()}</td>
       <td>${inp('budgetMinus',r.budgetMinus)}</td>
       <td class="tc" id="aiv-${bk}-${idx}-j">${abFmt(c.jarye)}</td>
       ${extraCell}
