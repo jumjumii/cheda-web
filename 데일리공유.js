@@ -95,7 +95,40 @@ function dlQueue(k) {
 Storage.prototype.setItem = function (k, v) {
   _lsSet.call(this, k, v);
   if (this === localStorage && DL_KEY.test(k)) dlQueue(k);
+  if (this === localStorage && AB_KEY.test(k)) abQueue(k);
 };
+
+// ── 💰 광고비 충전: 날짜별 시트(ab_state_날짜)·충전 기록(ab_history)도 팀 시트로(2026-10-26) ──
+//   시트 행: brand '충전', kind 'ab'(date=그 날짜) / kind 'abh'(date 2000-01-03, 기록 목록 통째)
+const AB_KEY = /^(ab_history|ab_state_(\d{4}-\d{2}-\d{2}))$/;
+const abRowsOf = k => {
+  let v = null; try { v = JSON.parse(localStorage.getItem(k)); } catch (e) {}
+  const m = k.match(AB_KEY), d = m[2] || '2000-01-03', kind = m[2] ? 'ab' : 'abh';
+  return dlSplit(kind, v).map(p => ({ brand: '충전', date: d, kind, media: p.media, value: p.value }));
+};
+const abQ = new Set(); let abT = 0;
+function abQueue(k) {
+  abQ.add(k); clearTimeout(abT);
+  abT = setTimeout(async () => {
+    const ks = [...abQ]; abQ.clear();
+    try { await dlPut(ks.flatMap(abRowsOf)); dlBadge('충전 시트 저장 ' + new Date().toTimeString().slice(0, 5), true); }
+    catch (e) { dlBadge('충전 시트 저장 실패 — ' + e.message, false); }
+  }, 1500);
+}
+async function abPull() {
+  let rows; try { rows = (await dbCall({ action: 'get', brand: '충전' })).rows; } catch (e) { return; }
+  const got = dlJoin(rows), up = [];
+  const mine = (() => { try { return JSON.parse(localStorage.getItem('ab_history') || '[]'); } catch (e) { return []; } })();
+  const sh = (got.find(r => r.kind === 'abh') || {}).value || [];
+  const by = {}; [...sh, ...mine].forEach(h => { if (h && h.date && (!by[h.date] || (h.ts || '') > (by[h.date].ts || ''))) by[h.date] = h; });
+  const merged = Object.values(by).sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 60);
+  _lsSet.call(localStorage, 'ab_history', JSON.stringify(merged));
+  if (JSON.stringify(merged) !== JSON.stringify(sh)) up.push('ab_history');
+  const shDates = new Set();
+  got.filter(r => r.kind === 'ab').forEach(r => { shDates.add(r.date); if (r.value) _lsSet.call(localStorage, 'ab_state_' + r.date, JSON.stringify(r.value)); });
+  for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i), m = k && k.match(AB_KEY); if (m && m[2] && !shDates.has(m[2])) up.push(k); }
+  if (up.length) try { await dlPut(up.flatMap(abRowsOf)); } catch (e) {}
+}
 
 // ── 3) 엑셀로 보내기 → 시트(kind 'xl'). 엑셀 PC가 받아서 넣는다 ──
 async function dlAllInOne() {
@@ -222,7 +255,7 @@ async function dlRtCheck() {
   let sec = {};
   try { const r = (await dbCall({ action: 'get', brand: '설정', from: '2000-01-01', to: '2000-01-01' })).rows.find(x => x.kind === 'dlcfg'); sec = (r && r.value) || {}; }
   catch (e) { dlBadge('설정 불러오기 실패 — ' + e.message, false); }
-  await dlPull();
+  await dlPull(); await abPull();
   document.querySelectorAll('script.dl-src').forEach(s => {
     let t = s.textContent; Object.entries(sec).forEach(([k, v]) => { t = t.split(k).join(v); });
     const n = document.createElement('script'); n.text = t; document.body.appendChild(n);
