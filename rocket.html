@@ -210,10 +210,20 @@ async function inbDates(acc) {
   DT[acc] = { dates: [], type: '조회 중… (10~30초)' }; delete PICK[acc]; render();
   try {
     const items = JSON.stringify(L.map(r => ({ v: r.vendorItemId, p: r.sellerProductId, q: qty(r) })));
-    const j = await (await fetch(`${SRV}/collect?medium=${encodeURIComponent('쿠팡입고날짜')}&acc=${encodeURIComponent(acc)}&items=${encodeURIComponent(items)}`)).json();
+    let j;
+    try { j = await (await fetch(`${SRV}/collect?medium=${encodeURIComponent('쿠팡입고날짜')}&acc=${encodeURIComponent(acc)}&items=${encodeURIComponent(items)}`)).json(); }
+    catch (e) { j = await inbLan(acc, items); }   // 이 PC가 아니면: 같은 와이파이의 수집 PC(입고날짜서버.py)에 맡김
     DT[acc] = j.error ? { error: j.error } : j;
-  } catch (e) { DT[acc] = { error: '날짜 조회는 수집 서버가 켜진 PC에서만 됩니다(쿠팡 쿠키가 그 PC에 있음). 수량 제안·멘트는 어디서나 됩니다.' }; }
+  } catch (e) { DT[acc] = { error: '날짜 조회 실패 — 수집 PC(같은 와이파이)가 켜져 있는지 확인하세요. 수량 제안·멘트는 어디서나 됩니다. (' + e.message + ')' }; }
   render();
+}
+async function inbLan(acc, items) {     // 수집 PC 주소는 비공개 시트(설정/2000-01-05/lan)에 그 PC가 올려 둠
+  const c = JSON.parse(localStorage.getItem('rt_db') || '{}');
+  const r = await (await fetch(c.url, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify({ token:c.token, action:'get', brand:'설정', from:'2000-01-05', to:'2000-01-05' }) })).json();
+  const lan = ((r.rows || []).find(x => x.kind === 'lan') || {}).value;
+  if (!lan || !lan.url) throw new Error('수집 PC 주소 없음');
+  return (await fetch(`${lan.url}/dates?acc=${encodeURIComponent(acc)}&items=${encodeURIComponent(items)}`, { headers: { 'x-cheda-token': c.token } })).json();
 }
 function inbLines(L) { return L.filter(r => qty(r) > 0).map(r => `${r['브랜드']} / ${short(r)} / ${r['옵션'] || ''} / ${qty(r)}개`); }
 function inbMent(acc, L, p) {
