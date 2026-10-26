@@ -1297,7 +1297,7 @@ async function rtJ(url) {
 
 // ── 해트케 = 압력이불만(사용자 규칙 2026-09-22) ──
 //   틱톡·구글·메타: 캠페인명에 'pb' / 네이버SA: 캠페인에 '압력' / GFA: 해트케압력 계정(…) 합계
-//   자사몰: 주문 '압력' − 환불 '압력'(실시간수집.py cafe24_hattke_pb) / 쿠팡: … 계정 상품명 '압력'
+//   자사몰: 주문 '압력' − 환불 '압력'(실시간수집.py cafe24_hattke_pb) / 쿠팡: …+… 계정 상품명 '압력'
 //   스마트스토어: 상품명 '압력이불'
 const RT_PB = s => /pb/i.test(String(s || '')) && !/커버|cover/i.test(String(s || ''));   // ★2026-10-16 압력이불커버 제외
 function rtGoogleCsvCost(csv, date, pick) {    // 구글 캠페인 보고서(탭 구분) → pick(캠페인) 행 비용 합
@@ -1357,14 +1357,16 @@ async function rtMediumHattke(kind, cfg, date) {
   if (kind === 'coupang') {
     d = await rtJ(`${SUSERVER}/collect?medium=쿠팡&brand=hattke&since=${s}&until=${u}&noad=1`);
     const blk = (!d.error && d.results && d.results[0]) ? d.results[0]['해트케'] : null;
-    const a = blk && blk.계정별 ? blk.계정별.find(x => x.id === (RT_CP_ACCOUNTS.hattke[0] || {}).id && x.ok) : null;
-    if (!a) return '쿠팡❌' + (d.error || '… 계정 데이터 없음');
-    if (a.압력매출 == null) return '쿠팡❌수집기 구버전(압력 필터 없음)';
+    const ids = RT_CP_ACCOUNTS.hattke.map(x => x.id);
+    const got = blk && blk.계정별 ? blk.계정별.filter(x => ids.includes(x.id) && x.ok) : [];
+    if (!got.length) return '쿠팡❌' + (d.error || '해트케 계정 데이터 없음');
+    if (got.some(x => x.압력매출 == null)) return '쿠팡❌수집기 구버전(압력 필터 없음)';
     for (let n = 1; n <= 4; n++) ['sales', 'orders', 'refund'].forEach(f => { const el = document.getElementById('inp-coupang' + n + '-' + f); if (el) el.value = ''; });
     rtSeedCpAcct();
-    set('inp-coupang1-sales', a.압력매출); set('inp-coupang1-orders', a.압력판매량);
+    got.forEach(x => { const n = rtSlotOfAcct(x.id); if (n) { set('inp-coupang' + n + '-sales', x.압력매출); set('inp-coupang' + n + '-orders', x.압력판매량); } });
     if (typeof rtApplyCouponDefaults === 'function') rtApplyCouponDefaults();
-    return `쿠팡(드래프터·압력) ${a.압력매출.toLocaleString()}/${a.압력판매량}개`;
+    const miss = ids.filter(i => !got.some(x => x.id === i));
+    return `쿠팡(압력) ` + got.map(x => `${x.id} ${x.압력매출.toLocaleString()}/${x.압력판매량}개`).join(' + ') + (miss.length ? ` ⚠${miss.join(',')} 없음` : '');
   }
   return null;   // gfa·smartstore는 공용 경로(계정/키워드만 해트케 값)
 }
