@@ -1932,6 +1932,24 @@ function generateOnly(){
   renderSummary(rows);
   document.getElementById('result-section').style.display='';
   setTimeout(()=>document.getElementById('result-section').scrollIntoView({behavior:'smooth'}),80);
+  cpRocketCheck();
+}
+// 🚚 쿠팡 매출 ↔ 로켓 재고(윙 재고현황 '어제', 이 PC 수집 서버) 대조(2026-10-26). 로켓분은 로켓그로스 상품만이라
+//   데일리 쿠팡 매출이 그보다 10% 넘게 낮으면 일부 계정 누락 의심 → 빨간 줄. 웹(팀 사이트)은 데일리공유.js가 시트로 따로 함.
+async function cpRocketCheck(){
+  document.getElementById('cp-rk-warn')?.remove();
+  if(window.DL_HAS_ROCKET) return;
+  const bn={granny:'그래니살라',basetune:'베이스튠',hattke:'해트케'}[currentBrand]; if(!bn) return;
+  let j; try{ j=await (await fetch(`${SUSERVER}/rocket-yday`)).json(); }catch(e){ return; }
+  if(!j||!j.yday||!j.brands||!j.brands[bn]) return;
+  const d=j.yday, rv=j.brands[bn][0], rq=j.brands[bn][1]; if(rv<30000) return;
+  const n=v=>Number(String(v??'').replace(/[^0-9.-]/g,''))||0;
+  const dv=readManualRows().cp.filter(r=>r.date===d).reduce((t,r)=>t+n(r.rev),0);
+  if(dv>=rv*0.9) return;
+  const box=document.createElement('div'); box.id='cp-rk-warn';
+  box.style.cssText='margin:0 0 12px;padding:10px 14px;border:2px solid #dc2626;border-radius:10px;background:#fef2f2;color:#b91c1c;font-weight:700;font-size:13px';
+  box.textContent=`🔴 ${d} 쿠팡 매출 ${Math.round(dv).toLocaleString()} < 로켓 재고(어제) ${Math.round(rv).toLocaleString()} (${rq}개) — ${dv<=0?'데일리 쿠팡 값 없음':'로켓분보다 낮음, 일부 계정 누락?'}`;
+  document.getElementById('result-section')?.prepend(box);
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

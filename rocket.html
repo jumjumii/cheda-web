@@ -100,18 +100,34 @@
 const $ = id => document.getElementById(id);
 const fmt = v => v === null || v === undefined ? '-' : Number(v).toLocaleString();
 const GRADE = { NEW:'새상품', PACKAGE_DAMAGED:'포장 훼손', RETURN_BEST:'반품-최상', RETURN_GOOD:'반품-상', RETURN_NORMAL:'반품-중' };
-let rows = [], period = '어제', act = '';
+let rows = [], period = '어제', act = '', HIST = [], OPEN = {};
+const LEAD = 10;   // 입고 리드타임(일) — 날짜 조회 전 기본값
+const avg = r => { const a7 = (r['7일'] || {})['수량'], a30 = (r['30일'] || {})['수량']; return a7 != null ? a7 / 7 : a30 != null ? a30 / 30 : 0; };
+const runout = r => { const a = avg(r); return a > 0 && r['판매가능'] > 0 ? r['판매가능'] / a : null; };   // 남은 일수(최근 판매 속도)
+const conv = (r, p) => { const x = r[p] || {}; return x['조회'] > 0 && x['수량'] != null ? x['수량'] / x['조회'] * 100 : null; };
+const netp = r => r['가격'] ? r['가격'] - (r['즉시할인'] || 0) : null;
+function derive(prev) {   // 어제 급감 + 원인(품절·아이템위너·가격변동), 전일 스냅샷과 가격 비교
+  const P = {}; (prev || []).forEach(r => P[r.vendorItemId] = r);
+  rows.forEach(r => {
+    const a = avg(r), y = (r['어제'] || {})['수량'], o = P[r.vendorItemId];
+    r._pc = o && netp(o) && netp(r) && netp(o) !== netp(r) ? [netp(o), netp(r)] : null;
+    r._drop = a >= 1 && y != null && y < a * 0.5 ? (r['판매가능'] === 0 || r['상태'] === '품절' ? '품절' : r['아이템위너'] === false ? '아이템위너 아님'
+      : r._pc ? `가격변동 ${fmt(r._pc[0])}→${fmt(r._pc[1])}` : '원인 미상') : '';
+  });
+}
 
 async function load() {
   let c = {}; try { c = JSON.parse(localStorage.getItem('rt_db') || '{}'); } catch (e) {}
   if (!c.url) { $('meta').textContent = '위쪽 ⚙ 공유저장 설정을 먼저 해 주세요.'; return; }
   try {
     const r = await fetch(c.url, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify({ token:c.token, action:'get', brand:'쿠팡', from: new Date(Date.now() - 14 * 864e5).toISOString().slice(0, 10) }) });
+      body: JSON.stringify({ token:c.token, action:'get', brand:'쿠팡', from: new Date(Date.now() - 31 * 864e5).toISOString().slice(0, 10) }) });
     const j = await r.json(); if (j.error) throw new Error(j.error);
-    const last = j.rows.filter(x => x.kind === 'rocket').sort((a, b) => a.date < b.date ? 1 : -1)[0];
-    if (!last) { $('meta').textContent = '최근 14일 재고 기록이 없습니다.'; return; }
+    HIST = j.rows.filter(x => x.kind === 'rocket' && x.value).sort((a, b) => a.date < b.date ? -1 : 1);   // 날짜 오름차순(하루 1개)
+    const last = HIST[HIST.length - 1];
+    if (!last) { $('meta').textContent = '최근 30일 재고 기록이 없습니다.'; return; }
     rows = last.value.rows;
+    derive((HIST[HIST.length - 2] || {}).value?.rows);
     const src = last.value.source || {};
     $('meta').textContent = `${last.value.generated} 기준 · 어제=${last.value.yday || ''} · ` +
       Object.entries(src).map(([a, s]) => `${a}:${s}`).join(' · ');
@@ -131,9 +147,11 @@ function base() {   // 브랜드·계정·검색·새상품 필터(조치 항목
 const ACTS = [
   ['품절', r => r['상태'] === '품절', true],
   ['품절 임박', r => r['상태'] === '품절임박', true],
-  ['예상 14일 미만', r => r['판매가능'] > 0 && r['예상일수'] > 0 && r['예상일수'] < 14, true],
+  [`${LEAD}일 안 품절 예상`, r => runout(r) !== null && runout(r) < LEAD, true],
+  ['어제 판매 급감', r => !!r._drop, true],
+  ['아이템위너 아님', r => r['아이템위너'] === false && ((r['30일'] || {})['매출'] || 0) > 0, true],
+  ['예상 14일 미만', r => r['판매가능'] > 0 && r['예상일수'] > 0 && r['예상일수'] < 14, false],
   ['과잉 재고', r => r['상태'] === '과잉재고', false],
-  ['아이템위너 아님', r => r['아이템위너'] === false, false],
   ['입고중', r => (r['입고중'] || 0) > 0, false],
 ];
 
@@ -156,21 +174,32 @@ function render() {
     days: (a, b) => (a['예상일수'] ?? 1e9) - (b['예상일수'] ?? 1e9), qty: (a, b) => (a['판매가능'] ?? 1e9) - (b['판매가능'] ?? 1e9) };
   L = [...L].sort(S[$('fSort').value]);
   const sale = (r, p, lab) => { const x = r[p]; return `<span class="l">${lab}</span><span class="${x && x['수량'] < 0 ? 'neg' : ''}">${x ? fmt(x['수량']) + '개' : '-'}</span><span>${x && x['매출'] !== null ? fmt(x['매출']) + '원' : '-'}</span>`; };
+  const pct = v => v == null ? '-' : v.toFixed(1) + '%';
   $('list').innerHTML = `<div class="row head"><div>상품정보</div><div>최근 판매수량·매출</div><div>재고상태(개)</div><div>가격(원)</div><div>입고·반품</div><div>상품 상태</div></div>` +
-    (L.length ? L.map(r => `<div class="row">
+    (L.length ? L.map(r => `<div class="row" style="cursor:pointer" onclick="OPEN['${r.vendorItemId}']=!OPEN['${r.vendorItemId}'];render()" title="누르면 최근 30일 기록">
       <div class="prod">${r['이미지'] ? `<img src="${r['이미지']}" alt="" loading="lazy">` : '<img alt="">'}
         <div><div class="nm">${r['상품']}, ${r['옵션'] || ''}</div>
           <div class="mute">${r['계정']} · ${r['vendorItemId']}</div>
-          <span class="tag">${r['브랜드']}</span>${(r['등급'] || 'NEW') !== 'NEW' ? `<span class="tag used">${GRADE[r['등급']] || r['등급']}</span>` : ''}${r['승인상태'] ? `<span class="tag">${r['승인상태']}</span>` : ''}${r['판매중지'] ? '<span class="tag used">판매중지</span>' : ''}
+          <span class="tag">${r['브랜드']}</span>${(r['등급'] || 'NEW') !== 'NEW' ? `<span class="tag used">${GRADE[r['등급']] || r['등급']}</span>` : ''}${r['승인상태'] ? `<span class="tag">${r['승인상태']}</span>` : ''}${r['판매중지'] ? '<span class="tag used">판매중지</span>' : ''}${r._drop ? `<span class="tag used">⚠ 어제 급감 · ${r._drop}</span>` : ''}${runout(r) !== null && runout(r) < LEAD ? `<span class="tag used">⚠ 약 ${Math.floor(runout(r))}일 뒤 품절</span>` : ''}
         </div></div>
-      <div class="kv">${sale(r, '어제', '어제')}${sale(r, '7일', '지난 7일')}${sale(r, '30일', '지난 30일')}</div>
+      <div class="kv">${sale(r, '어제', '어제')}${sale(r, '7일', '지난 7일')}${sale(r, '30일', '지난 30일')}<span class="l">조회→판매</span><span>7일 ${pct(conv(r, '7일'))}</span><span>30일 ${pct(conv(r, '30일'))}</span></div>
       <div class="stock">판매가능 <b>${fmt(r['판매가능'])}</b>${r['예상일수'] ? `<span class="days ${r['예상일수'] < 14 ? 'low' : ''}">${r['예상일수']}일</span>` : ''}
         <div class="mute">입고중 ${fmt(r['입고중'])}</div></div>
       <div class="n">${r['가격'] ? fmt(r['가격'] - (r['즉시할인'] || 0)) : '-'}${r['즉시할인'] ? `<div class="mute">판매가 ${fmt(r['가격'])} · 즉시할인 ${fmt(r['즉시할인'])}</div>` : ''}
         <div class="mute">${r['아이템위너'] === true ? '아이템위너' : r['아이템위너'] === false ? '아이템위너 아님' : ''}</div></div>
       <div class="n mute">${r['추천입고'] ? `추천 입고 ${fmt(r['추천입고'])}개${r['추천입고일'] > 0 ? ` (${r['추천입고일']}일 내)` : ''}<br>` : ''}반품(30일) ${fmt(r['반품30일'])}${r['보관료'] ? `<br>보관료 ${fmt(r['보관료'])}원` : ''}</div>
       <div class="st ${r['상태']}">${r['상태']}</div>
-    </div>`).join('') : '<div class="empty">조건에 맞는 상품이 없습니다.</div>');
+    </div>${OPEN[r.vendorItemId] ? hist(r) : ''}`).join('') : '<div class="empty">조건에 맞는 상품이 없습니다.</div>');
+}
+function hist(r) {   // 최근 30일 스냅샷: 날짜별 판매가능·어제 판매·7일 전환율·가격
+  const H = HIST.map(h => [h.value.yday || h.date, (h.value.rows || []).find(x => x.vendorItemId === r.vendorItemId)]).filter(x => x[1]);
+  if (H.length < 2) return '<div class="ig mute">기록이 쌓이는 중입니다(하루 1개씩, 최근 30일).</div>';
+  const mx = Math.max(1, ...H.map(([, x]) => x['판매가능'] || 0));
+  return `<div class="ig"><table class="mute" style="border-collapse:collapse;font-size:12px"><tr><th align="left">날짜(어제)</th><th>판매가능</th><th></th><th>어제 판매</th><th>7일 전환</th><th>가격</th></tr>` +
+    H.slice().reverse().map(([d, x]) => `<tr><td>${d}</td><td align="right">${fmt(x['판매가능'])}</td>
+      <td><div style="width:${Math.round((x['판매가능'] || 0) / mx * 120)}px;height:6px;background:#93c5fd;border-radius:3px"></div></td>
+      <td align="right">${fmt((x['어제'] || {})['수량'])}개</td><td align="right">${conv(x, '7일') == null ? '-' : conv(x, '7일').toFixed(1) + '%'}</td>
+      <td align="right">${fmt(netp(x))}</td></tr>`).join('') + '</table></div>';
 }
 // ── 🚚 입고 제안 (2026-10-26): 30일 판매분 기준 수량 제안 → 계정별 한 입고 → 수량별 출고 가능일(이 PC 수집 서버) → 물류팀 멘트 ──
 //   제안 = max(30일 판매, 7일 판매÷7×30) − 판매가능 − 입고중 (0 미만은 0). 칸에서 고칠 수 있음.
@@ -185,6 +214,10 @@ const short = r => (r['상품'] || '').replace(/\[[^\]]*\]/g, '').replace(/[A-Za
   .replace(/해트케|베이스튠|그래니\s?살라/g, ' ').trim().split(/\s+/).slice(0, 3).join(' ');                            // 브랜드 빼고 앞 3단어
 const md = d => (+d.slice(5, 7)) + '/' + (+d.slice(8));
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function firstDay(acc) {   // 조회한 날짜 중 가장 빠른 가능일까지 남은 일수(조회 전엔 LEAD)
+  const x = DT[acc] && DT[acc].dates && DT[acc].dates.find(x => x.fc && x.kind !== 'off');
+  return x ? Math.max(0, Math.round((new Date(x.date + 'T00:00:00') - new Date(new Date().toDateString())) / 864e5)) : LEAD;
+}
 function inbRows(B, acc) { return B.filter(r => r['계정'] === acc && (inbAll || qty(r) > 0 || sugg(r) > 0)); }
 function renderInb(B) {
   const accs = [...new Set(B.map(r => r['계정']))];
@@ -199,7 +232,8 @@ function renderInb(B) {
           onclick="PICK['${acc}']=${esc(JSON.stringify(x))};render()">${md(x.date)}${x.kind === 'mon' ? '(월·가급적X)' : ''}${x.fc ? ' · ' + esc(x.fcName) : ''}</button>`).join('') + '</div>';
       return `<div class="ig"><h3>${esc(acc)} <span class="mute">${L.length}개 옵션 · 합계 ${fmt(L.reduce((s, r) => s + qty(r), 0))}개</span></h3>
         ${L.map(r => `<div class="ir"><div>${esc(r['브랜드'])} / ${esc(short(r))} / ${esc(r['옵션'] || '')}</div>
-          <div class="mute">30일 ${fmt((r['30일'] || {})['수량'])} · 7일 ${fmt((r['7일'] || {})['수량'])} · 판매가능 ${fmt(r['판매가능'])} · 입고중 ${fmt(r['입고중'])} → 제안 ${fmt(sugg(r))}</div>
+          <div class="mute">30일 ${fmt((r['30일'] || {})['수량'])} · 7일 ${fmt((r['7일'] || {})['수량'])} · 판매가능 ${fmt(r['판매가능'])} · 입고중 ${fmt(r['입고중'])} → 제안 ${fmt(sugg(r))}${(() => {
+            const ro = runout(r), lead = firstDay(acc); return ro !== null && ro < lead ? `<div class="neg">⚠ 약 ${Math.floor(ro)}일 뒤 품절 — 가장 빠른 입고(${lead}일 뒤)보다 먼저 떨어짐</div>` : ''; })()}</div>
           <div><input type="number" min="0" value="${qty(r)}" onchange="Q['${r.vendorItemId}']=+this.value;delete DT['${acc}'];delete PICK['${acc}'];render()"></div></div>`).join('')}
         <div class="btns"><button onclick="inbDates('${acc}')">📅 날짜 조회</button></div>${dates}${p ? inbMent(acc, L, p) : ''}</div>`;
     }).join('') || '<div class="empty">입고가 필요한 상품이 없습니다.</div>');

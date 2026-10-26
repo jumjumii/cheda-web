@@ -338,3 +338,43 @@ async function dlRtCheck() {
     }
   };
 })();
+
+// ── 🚚 쿠팡 매출 ↔ 로켓 재고(윙 재고현황 '어제') 대조 (2026-10-26)
+//   로켓 재고는 로켓그로스 상품만이라 데일리 쿠팡 매출은 그보다 크거나 같아야 정상 → 로켓×0.9보다 낮으면 빨강(수집 누락·일부만 들어옴 의심).
+window.DL_HAS_ROCKET = true;   // 원본 생성기의 로컬 대조(수집 서버)는 웹에선 건너뜀
+const DL_RK_BRAND = { granny: '그래니살라', basetune: '베이스튠', hattke: '해트케' }, dlRkCache = {};
+async function dlRocketOf(d) {    // {브랜드: [매출, 수량]} — 그 날짜를 '어제'로 담은 가장 최신 재고 스냅샷
+  if (!(d in dlRkCache)) {
+    dlRkCache[d] = null;
+    try {
+      const to = dlYmd(new Date(new Date(d + 'T00:00:00').getTime() + 3 * 864e5));
+      const v = (await dbCall({ action: 'get', brand: '쿠팡', from: d, to })).rows
+        .filter(r => r.kind === 'rocket' && r.value && r.value.yday === d).map(r => r.value)
+        .sort((a, b) => (a.generated < b.generated ? 1 : -1))[0];
+      const m = {}; (v ? v.rows : []).forEach(r => { const s = r['어제'] || {}; const t = (m[r['브랜드']] ||= [0, 0]); t[0] += dlN(s['매출']); t[1] += dlN(s['수량']); });
+      dlRkCache[d] = v ? m : false;
+    } catch (e) { delete dlRkCache[d]; }
+  }
+  return dlRkCache[d];
+}
+const _dlRtCheck0 = dlRtCheck;
+dlRtCheck = async function () {
+  await _dlRtCheck0();
+  const bn = DL_RK_BRAND[typeof currentBrand === 'undefined' ? '' : currentBrand]; if (!bn) return;
+  let from = '', to = ''; try { from = getFrom(); to = getTo(); } catch (e) {}
+  if (!from || !to || from > to) return;
+  const out = [];
+  for (let t = new Date(from + 'T00:00:00Z'); out.length < 31 && t <= new Date(to + 'T00:00:00Z'); t = new Date(t.getTime() + 864e5)) {
+    const d = t.toISOString().slice(0, 10), rk = await dlRocketOf(d); if (!rk || !rk[bn]) continue;
+    const [rv, rq] = rk[bn], dv = dlDaily(d).coupang; if (rv < 30000) continue;
+    const txt = `${d} 쿠팡 매출: 데일리 ${Math.round(dv).toLocaleString()} / 로켓 재고(어제) ${Math.round(rv).toLocaleString()} (${rq}개)`;
+    if (dv <= 0) out.push(txt + ' — 데일리 쿠팡 값 없음(수집 누락?)');
+    else if (dv < rv * 0.9) out.push(txt + ` (${Math.round((dv - rv) / rv * 100)}%) — 로켓분보다 낮음(일부 계정 누락?)`);
+  }
+  document.getElementById('dl-rk')?.remove();
+  if (!out.length) return;
+  let box = document.getElementById('dl-rtcheck');
+  if (!box) { box = document.createElement('div'); box.id = 'dl-rtcheck'; document.querySelector('.wrap')?.prepend(box); }
+  box.insertAdjacentHTML('beforeend', '<div id="dl-rk"><b>⚠ 쿠팡 로켓 재고와 대조</b>' + out.map(t => `<div class="dl-big">🔴 ${t}</div>`).join('') + '</div>');
+  box.style.display = '';
+};
