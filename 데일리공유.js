@@ -251,11 +251,17 @@ async function dlRtCheck() {
     #dl-rtcheck .dl-big{color:#b91c1c;font-weight:700} #dl-rtcheck .dl-mid{color:#b45309}`;
   document.head.appendChild(css);
   if (!RTDB.url) { document.body.insertAdjacentHTML('afterbegin', '<div style="padding:30px;text-align:center;font:15px sans-serif;color:#b91c1c">통합 사이트 첫 화면에서 비밀번호로 열어 주세요.</div>'); return; }
-  dlBadge('설정 불러오는 중…', true);
-  let sec = {};
-  try { const r = (await dbCall({ action: 'get', brand: '설정', from: '2000-01-01', to: '2000-01-01' })).rows.find(x => x.kind === 'dlcfg'); sec = (r && r.value) || {}; }
-  catch (e) { dlBadge('설정 불러오기 실패 — ' + e.message, false); }
-  await dlPull(); await abPull();
+  // ★2026-10-26 속도: 시트 요청은 한 번에 ~4초. 예전엔 설정·팀저장·충전 3개를 차례로 기다린 뒤에야 화면을 띄웠다(12초+).
+  //   이제 설정은 이 브라우저에 기억해 두고 바로 화면을 띄운 뒤, 팀 저장분은 뒤에서 받아 바뀐 게 있으면 날짜 탭만 다시 그린다.
+  let sec = null; try { sec = JSON.parse(localStorage.getItem('dl_cfg_cache') || 'null'); } catch (e) {}
+  const cfgP = dbCall({ action: 'get', brand: '설정', from: '2000-01-01', to: '2000-01-01' })
+    .then(j => { const r = j.rows.find(x => x.kind === 'dlcfg'); const v = (r && r.value) || {}; _lsSet.call(localStorage, 'dl_cfg_cache', JSON.stringify(v)); return v; })
+    .catch(e => { dlBadge('설정 불러오기 실패 — ' + e.message, false); return null; });
+  if (!sec) { dlBadge('처음 한 번 설정 불러오는 중…', true); sec = (await cfgP) || {}; }
+  const pullP = Promise.all([dlPull(true), abPull()]);
+  let hasLocal = false; for (let i = 0; i < localStorage.length; i++) if (DL_KEY.test(localStorage.key(i) || '')) { hasLocal = true; break; }
+  if (!hasLocal) { dlBadge('팀 저장분 처음 받는 중…', true); await pullP; }   // 이 브라우저에 아무것도 없으면 처음 한 번만 기다림
+  else pullP.then(([n]) => { dlBadge('팀 저장분 반영 ' + new Date().toTimeString().slice(0, 5), true); if (n) try { renderDateTabs(); } catch (e) {} });
   document.querySelectorAll('script.dl-src').forEach(s => {
     let t = s.textContent; Object.entries(sec).forEach(([k, v]) => { t = t.split(k).join(v); });
     const n = document.createElement('script'); n.text = t; document.body.appendChild(n);
