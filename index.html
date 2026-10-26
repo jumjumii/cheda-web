@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>체다 통합</title>
+<style>
+  :root { --bg:#f7f7f5; --ink:#1f2328; --mute:#6b7280; --line:#e5e7eb; --acc:#2563eb; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); font:14px/1.5 system-ui, "Malgun Gothic", sans-serif; }
+  nav { display:flex; gap:4px; align-items:center; padding:6px 12px; border-bottom:1px solid var(--line); background:#fff; overflow-x:auto; }
+  nav b { margin-right:10px; white-space:nowrap; }
+  nav a { padding:6px 12px; border-radius:6px; color:var(--mute); text-decoration:none; white-space:nowrap; }
+  nav a.on { background:#eef2ff; color:var(--acc); font-weight:600; }
+  nav .sp { flex:1; }
+  nav button { border:1px solid var(--line); background:#fff; border-radius:6px; padding:5px 10px; cursor:pointer; font:inherit; color:var(--mute); }
+  #lk { position:fixed; inset:0; z-index:9; display:flex; align-items:center; justify-content:center; background:var(--bg); }
+  #lk[hidden] { display:none; }
+  #lk form { width:300px; padding:26px 24px; border-radius:14px; background:#fff; border:1px solid var(--line); box-shadow:0 8px 32px rgba(0,0,0,.06); }
+  #lk input { width:100%; box-sizing:border-box; padding:10px 12px; margin-top:8px; border:1px solid var(--line); border-radius:9px; background:var(--bg); font:inherit; }
+  #lk button { width:100%; margin-top:10px; padding:10px; border:0; border-radius:9px; background:var(--ink); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+  iframe { display:block; width:100%; height:calc(100% - 47px); border:0; }
+</style>
+</head>
+<body>
+<nav>
+  <b>🧀 체다</b>
+  <a href="#realtime">실시간 리포트</a>
+  <a href="#daily">데일리리포트</a>
+  <a href="#rocket">쿠팡 로켓재고</a>
+  <span class="sp"></span>
+  <button onclick="lockNow()">🔒 잠그기</button>
+</nav>
+<iframe id="view" title="화면"></iframe>
+<div id="lk" hidden><form>
+  <div style="font-size:20px;font-weight:700">🧀 체다 통합</div>
+  <div id="lk-say" style="color:var(--mute);font-size:13px;margin:4px 0 6px">비밀번호를 넣어 주세요</div>
+  <input id="lk-pw" type="password" autocomplete="current-password" placeholder="비밀번호" autofocus>
+  <input id="lk-who" placeholder="내 이름 (수정자 표시용)">
+  <button id="lk-go">열기</button>
+  <div style="margin-top:12px;font-size:11.5px;color:var(--mute)">데이터 주소는 잠긴 채로 올라와 있고, 비밀번호를 넣은 이 브라우저에서만 풀립니다.</div>
+</form></div>
+<script>
+// 메뉴 = 같은 사이트 안의 화면들. 공유저장 설정(시트 주소·비밀값)은 모든 화면이 같이 쓴다(localStorage 'rt_db').
+const PAGES = { realtime: 'realtime/index.html', daily: 'daily.html', rocket: 'rocket.html' };
+// 잠금: 공유저장 주소·비밀값은 잠금.enc 에 비밀번호로 잠겨 있다(AES-256-GCM, PBKDF2 25만 번 — 잠금만들기.py).
+// 한 번 열면 이 브라우저가 기억한다. 🔒 잠그기 = 잊기.
+const opened = () => { try { const c = JSON.parse(localStorage.getItem('rt_db') || '{}'); return c.url && c.token; } catch (e) { return false; } };
+async function unlock(pw) {
+  const r = await fetch('잠금.enc', { cache: 'no-store' }); if (!r.ok) throw new Error('잠금 파일 없음');
+  const b = new Uint8Array(await r.arrayBuffer());
+  const seed = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt: b.slice(0, 16), iterations: 250000, hash: 'SHA-256' },
+    seed, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+  return new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b.slice(16, 28) }, key, b.slice(28)));
+}
+function lockNow() { try { localStorage.removeItem('rt_db'); } catch (e) {} location.reload(); }
+function askPw() {
+  const lk = document.getElementById('lk'), say = document.getElementById('lk-say'), go = document.getElementById('lk-go');
+  try { document.getElementById('lk-who').value = localStorage.getItem('rt_db_who') || ''; } catch (e) {}
+  lk.hidden = false;
+  lk.querySelector('form').onsubmit = async e => {
+    e.preventDefault();
+    const pw = document.getElementById('lk-pw').value, who = document.getElementById('lk-who').value.trim(); if (!pw) return;
+    go.disabled = true; say.textContent = '여는 중…'; say.style.color = '';
+    try {
+      const txt = await unlock(pw);
+      localStorage.setItem('rt_db', txt); if (who) localStorage.setItem('rt_db_who', who);
+      lk.hidden = true; show(true);
+    } catch (err) {
+      go.disabled = false; say.textContent = '비밀번호가 다릅니다'; say.style.color = '#c5372c'; document.getElementById('lk-pw').select();
+    }
+  };
+}
+function show(reload) {
+  const k = PAGES[location.hash.slice(1)] ? location.hash.slice(1) : 'realtime';
+  document.querySelectorAll('nav a').forEach(a => a.classList.toggle('on', a.hash === '#' + k));
+  const f = document.getElementById('view');
+  if (reload || !f.src.endsWith(PAGES[k])) f.src = PAGES[k];
+}
+addEventListener('hashchange', () => opened() && show());
+opened() ? show() : askPw();
+</script>
+</body>
+</html>

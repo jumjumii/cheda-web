@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>쿠팡 로켓재고</title>
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --ink:#1f2328; --mute:#6b7280; --line:#e5e7eb; --acc:#2563eb; --bad:#dc2626; --warn:#d97706; --ok:#16a34a; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:13px/1.5 system-ui, "Malgun Gothic", sans-serif; }
+  h2 { margin:0; font-size:18px; }
+  .mute { color:var(--mute); font-size:12px; }
+  .top { display:grid; grid-template-columns:minmax(260px,1fr) 2fr; gap:12px; margin:12px 0; }
+  @media (max-width:800px) { .top { grid-template-columns:1fr; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .tabs button { border:0; background:none; padding:2px 6px; color:var(--mute); cursor:pointer; font:inherit; }
+  .tabs button.on { color:var(--acc); font-weight:700; border-bottom:2px solid var(--acc); }
+  .big { font-size:24px; font-weight:700; margin:6px 0 0; font-variant-numeric:tabular-nums; }
+  .acts { display:flex; flex-wrap:wrap; }
+  .acts button { flex:1; min-width:90px; border:0; border-left:1px solid var(--line); background:none; padding:4px 8px; text-align:left; cursor:pointer; font:inherit; color:var(--mute); }
+  .acts button:first-child { border-left:0; }
+  .acts button b { display:block; font-size:22px; color:var(--ink); }
+  .acts button.on { background:#eef2ff; border-radius:6px; }
+  .acts button.red b { color:var(--bad); }
+  .bar { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin:8px 0; }
+  .bar select, .bar input[type=search] { padding:6px 8px; border:1px solid var(--line); border-radius:6px; font:inherit; background:#fff; }
+  .bar input[type=search] { min-width:200px; flex:1; }
+  .list { background:var(--card); border:1px solid var(--line); border-radius:10px; }
+  .row { display:grid; grid-template-columns:minmax(260px,2.2fr) minmax(170px,1.3fr) minmax(150px,1fr) minmax(120px,.9fr) minmax(120px,.9fr) 90px; gap:10px; padding:12px 14px; border-top:1px solid var(--line); align-items:start; }
+  .row.head { border-top:0; color:var(--mute); font-size:12px; padding:8px 14px; background:#fafafa; border-radius:10px 10px 0 0; }
+  @media (max-width:900px) { .row { grid-template-columns:1fr 1fr; } .row.head { display:none; } }
+  .prod { display:flex; gap:10px; }
+  .prod img { width:56px; height:56px; border-radius:6px; border:1px solid var(--line); object-fit:cover; background:#fafafa; flex:none; }
+  .prod .nm { font-weight:600; }
+  .tag { display:inline-block; font-size:11px; padding:0 6px; border-radius:4px; background:#f3f4f6; color:var(--mute); margin:2px 4px 0 0; }
+  .tag.used { background:#fff7ed; color:#c2410c; }
+  .kv { display:grid; grid-template-columns:auto 1fr auto; gap:0 8px; font-variant-numeric:tabular-nums; }
+  .kv span:nth-child(3n+2), .kv span:nth-child(3n) { text-align:right; }
+  .kv .l { color:var(--mute); }
+  .n { font-variant-numeric:tabular-nums; }
+  .stock b { font-size:16px; }
+  .days { display:inline-block; font-size:11px; padding:0 6px; border-radius:10px; background:#f3f4f6; margin-left:4px; }
+  .days.low { background:#fee2e2; color:var(--bad); }
+  .st { font-weight:600; }
+  .st.품절 { color:var(--bad); } .st.품절임박 { color:var(--warn); } .st.과잉재고 { color:#7c3aed; } .st.양호 { color:var(--ok); }
+  .neg { color:var(--bad); }
+  .empty { padding:30px; text-align:center; color:var(--mute); }
+</style>
+</head>
+<body>
+<h2>재고현황 <span class="mute">쿠팡 로켓그로스 · 그래니살라·베이스튠·해트케 · 4개 계정</span></h2>
+<div class="mute" id="meta">불러오는 중…</div>
+
+<div class="top">
+  <div class="card">
+    <div class="tabs" id="ptabs"></div>
+    <div class="mute">매출금액(취소 제외)</div>
+    <div class="big" id="gmv">-</div>
+    <div class="mute" id="units"></div>
+  </div>
+  <div class="card">
+    <b>조치가 필요한 항목</b> <span class="mute">누르면 해당 상품만 보기</span>
+    <div class="acts" id="acts" style="margin-top:8px"></div>
+  </div>
+</div>
+
+<div class="bar">
+  <select id="fBrand" onchange="render()"></select>
+  <select id="fAcct" onchange="render()"></select>
+  <input type="search" id="fq" placeholder="상품명·옵션·vendorItemId 검색" oninput="render()">
+  <select id="fSort" onchange="render()">
+    <option value="g30">지난 30일 매출 높은 순</option>
+    <option value="g7">지난 7일 매출 높은 순</option>
+    <option value="g1">어제 매출 높은 순</option>
+    <option value="days">판매가능 예상일 짧은 순</option>
+    <option value="qty">판매가능 수량 적은 순</option>
+  </select>
+  <label class="mute"><input type="checkbox" id="fNew" checked onchange="render()"> 새상품만(반품 재판매 제외)</label>
+</div>
+
+<div class="list" id="list"></div>
+<p class="mute">값은 PC가 쿠팡 윙 재고현황 데이터로 받아 올립니다(쿠키가 만료된 계정은 공식 API로 대신 — 그 계정은 7일·매출 일부가 비어 보임).
+  판매량은 취소를 뺀 수량, 매출은 취소 제외 금액입니다. 예상일수 = 쿠팡이 계산한 판매가능 예상 기간.</p>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmt = v => v === null || v === undefined ? '-' : Number(v).toLocaleString();
+const GRADE = { NEW:'새상품', PACKAGE_DAMAGED:'포장 훼손', RETURN_BEST:'반품-최상', RETURN_GOOD:'반품-상', RETURN_NORMAL:'반품-중' };
+let rows = [], period = '어제', act = '';
+
+async function load() {
+  let c = {}; try { c = JSON.parse(localStorage.getItem('rt_db') || '{}'); } catch (e) {}
+  if (!c.url) { $('meta').textContent = '위쪽 ⚙ 공유저장 설정을 먼저 해 주세요.'; return; }
+  try {
+    const r = await fetch(c.url, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ token:c.token, action:'get', brand:'쿠팡', from: new Date(Date.now() - 14 * 864e5).toISOString().slice(0, 10) }) });
+    const j = await r.json(); if (j.error) throw new Error(j.error);
+    const last = j.rows.filter(x => x.kind === 'rocket').sort((a, b) => a.date < b.date ? 1 : -1)[0];
+    if (!last) { $('meta').textContent = '최근 14일 재고 기록이 없습니다.'; return; }
+    rows = last.value.rows;
+    const src = last.value.source || {};
+    $('meta').textContent = `${last.value.generated} 기준 · 어제=${last.value.yday || ''} · ` +
+      Object.entries(src).map(([a, s]) => `${a}:${s}`).join(' · ');
+    const opt = (id, all, vals) => { $(id).innerHTML = `<option value="">${all}</option>` + vals.map(v => `<option>${v}</option>`).join(''); };
+    opt('fBrand', '전체 브랜드', [...new Set(rows.map(r => r['브랜드']))]);
+    opt('fAcct', '전체 계정', [...new Set(rows.map(r => r['계정']))]);
+    render();
+  } catch (e) { $('meta').textContent = '불러오기 실패 — ' + e.message; }
+}
+
+function base() {   // 브랜드·계정·검색·새상품 필터(조치 항목 숫자도 이 범위로 셈)
+  const b = $('fBrand').value, a = $('fAcct').value, q = $('fq').value.trim().toLowerCase(), onlyNew = $('fNew').checked;
+  return rows.filter(r => (!b || r['브랜드'] === b) && (!a || r['계정'] === a) && (!onlyNew || (r['등급'] || 'NEW') === 'NEW') &&
+    (!q || (r['상품'] + ' ' + (r['옵션'] || '') + ' ' + r['vendorItemId']).toLowerCase().includes(q)));
+}
+
+const ACTS = [
+  ['품절', r => r['상태'] === '품절', true],
+  ['품절 임박', r => r['상태'] === '품절임박', true],
+  ['예상 14일 미만', r => r['판매가능'] > 0 && r['예상일수'] > 0 && r['예상일수'] < 14, true],
+  ['과잉 재고', r => r['상태'] === '과잉재고', false],
+  ['아이템위너 아님', r => r['아이템위너'] === false, false],
+  ['입고중', r => (r['입고중'] || 0) > 0, false],
+];
+
+function render() {
+  const B = base();
+  // 기간 탭 + 매출 합계
+  $('ptabs').innerHTML = ['어제', '7일', '30일'].map(p => `<button class="${p === period ? 'on' : ''}" onclick="period='${p}';render()">${p === '어제' ? '어제' : '지난 ' + p}</button>`).join('');
+  const sum = k => B.reduce((s, r) => s + ((r[period] || {})[k] || 0), 0);
+  $('gmv').textContent = fmt(sum('매출')) + '원';
+  $('units').textContent = `판매 ${fmt(sum('수량'))}개 · 취소 ${fmt(sum('취소'))}개 · 조회 ${fmt(sum('조회'))}`;
+  // 조치 항목
+  $('acts').innerHTML = ACTS.map(([n, f, red]) => { const c = B.filter(f).length;
+    return `<button class="${act === n ? 'on' : ''} ${red && c ? 'red' : ''}" onclick="act=act==='${n}'?'':'${n}';render()">${n}<b>${c}</b></button>`; }).join('');
+  // 목록
+  let L = act ? B.filter(ACTS.find(x => x[0] === act)[1]) : B;
+  const g = (r, p) => (r[p] || {})['매출'] || 0;
+  const S = { g30: (a, b) => g(b, '30일') - g(a, '30일'), g7: (a, b) => g(b, '7일') - g(a, '7일'), g1: (a, b) => g(b, '어제') - g(a, '어제'),
+    days: (a, b) => (a['예상일수'] ?? 1e9) - (b['예상일수'] ?? 1e9), qty: (a, b) => (a['판매가능'] ?? 1e9) - (b['판매가능'] ?? 1e9) };
+  L = [...L].sort(S[$('fSort').value]);
+  const sale = (r, p, lab) => { const x = r[p]; return `<span class="l">${lab}</span><span class="${x && x['수량'] < 0 ? 'neg' : ''}">${x ? fmt(x['수량']) + '개' : '-'}</span><span>${x && x['매출'] !== null ? fmt(x['매출']) + '원' : '-'}</span>`; };
+  $('list').innerHTML = `<div class="row head"><div>상품정보</div><div>최근 판매수량·매출</div><div>재고상태(개)</div><div>가격(원)</div><div>입고·반품</div><div>상품 상태</div></div>` +
+    (L.length ? L.map(r => `<div class="row">
+      <div class="prod">${r['이미지'] ? `<img src="${r['이미지']}" alt="" loading="lazy">` : '<img alt="">'}
+        <div><div class="nm">${r['상품']}, ${r['옵션'] || ''}</div>
+          <div class="mute">${r['계정']} · ${r['vendorItemId']}</div>
+          <span class="tag">${r['브랜드']}</span>${(r['등급'] || 'NEW') !== 'NEW' ? `<span class="tag used">${GRADE[r['등급']] || r['등급']}</span>` : ''}${r['승인상태'] ? `<span class="tag">${r['승인상태']}</span>` : ''}${r['판매중지'] ? '<span class="tag used">판매중지</span>' : ''}
+        </div></div>
+      <div class="kv">${sale(r, '어제', '어제')}${sale(r, '7일', '지난 7일')}${sale(r, '30일', '지난 30일')}</div>
+      <div class="stock">판매가능 <b>${fmt(r['판매가능'])}</b>${r['예상일수'] ? `<span class="days ${r['예상일수'] < 14 ? 'low' : ''}">${r['예상일수']}일</span>` : ''}
+        <div class="mute">입고중 ${fmt(r['입고중'])}</div></div>
+      <div class="n">${r['가격'] ? fmt(r['가격'] - (r['즉시할인'] || 0)) : '-'}${r['즉시할인'] ? `<div class="mute">판매가 ${fmt(r['가격'])} · 즉시할인 ${fmt(r['즉시할인'])}</div>` : ''}
+        <div class="mute">${r['아이템위너'] === true ? '아이템위너' : r['아이템위너'] === false ? '아이템위너 아님' : ''}</div></div>
+      <div class="n mute">${r['추천입고'] ? `추천 입고 ${fmt(r['추천입고'])}개${r['추천입고일'] > 0 ? ` (${r['추천입고일']}일 내)` : ''}<br>` : ''}반품(30일) ${fmt(r['반품30일'])}${r['보관료'] ? `<br>보관료 ${fmt(r['보관료'])}원` : ''}</div>
+      <div class="st ${r['상태']}">${r['상태']}</div>
+    </div>`).join('') : '<div class="empty">조건에 맞는 상품이 없습니다.</div>');
+}
+load();
+</script>
+</body>
+</html>

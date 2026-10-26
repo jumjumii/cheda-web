@@ -1,0 +1,2478 @@
+<!-- ================================================================
+  ⚠️  이 파일은 [준섭] 전용입니다.
+  수정이 필요한 경우 원본(team-realtime-report.html)에서 새로 복제하세요.
+  무단 수정 시 데이터 손실이 발생할 수 있습니다.
+================================================================ -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>팀 실시간 리포트</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f1117; --surface: #1a1d27; --surface2: #22263a; --border: #2e3348;
+  --text: #e2e8f0; --muted: #8892a4; --accent: #4f7fff;
+  --red: #ef4444; --yellow: #f59e0b; --green: #22c55e; --purple: #a78bfa;
+}
+body { background: var(--bg); color: var(--text); font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; min-height: 100vh; }
+
+.header { display: flex; align-items: center; gap: 12px; padding: 16px 28px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.logo { width: 30px; height: 30px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: #fff; }
+.header h1 { font-size: 15px; font-weight: 600; }
+.header h1 span { color: var(--accent); }
+.header-time { margin-left: auto; font-size: 12px; color: var(--muted); }
+
+.main { max-width: 1600px; margin: 0 auto; padding: 24px 28px; }
+.section-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+
+/* Brand Selector */
+.brand-selector-wrap { margin-bottom: 20px; }
+.brand-selector { display: flex; gap: 8px; }
+.brand-btn {
+  padding: 10px 28px; border-radius: 10px; border: 2px solid var(--border);
+  background: var(--surface2); color: var(--muted); font-size: 14px; font-weight: 700;
+  cursor: pointer; transition: all 0.18s; letter-spacing: 0.02em;
+}
+.brand-btn:hover { border-color: var(--accent); color: var(--text); }
+.brand-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* Input card */
+.input-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin-bottom: 16px; }
+.input-block { display: flex; gap: 20px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px; }
+.input-block:last-child { margin-bottom: 0; }
+.block-label { font-size: 12px; font-weight: 700; color: var(--text); min-width: 50px; align-self: flex-end; padding-bottom: 2px; }
+.input-group { display: flex; flex-direction: column; gap: 6px; }
+.input-group label { font-size: 11px; color: var(--muted); }
+.input-group input[type=number],
+.input-group input[type=text] { background: var(--surface2); border: 1px solid var(--border); color: var(--text); font-size: 13px; padding: 8px 12px; border-radius: 8px; outline: none; width: 150px; }
+input[type=number] { -webkit-appearance: textfield; -moz-appearance: textfield; appearance: textfield; }
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.input-group input[type=text].wide { width: 340px; }
+.input-group input[type=date] { background: var(--surface2); border: 1px solid var(--border); color: var(--text); font-size: 13px; padding: 8px 12px; border-radius: 8px; outline: none; width: 160px; color-scheme: dark; }
+.input-group input:focus { border-color: var(--accent); }
+
+.time-btns { display: flex; gap: 8px; }
+.time-btn { padding: 8px 18px; border-radius: 8px; border: 1.5px solid var(--border); background: var(--surface2); color: var(--muted); font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.18s; }
+.time-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.time-btn[data-t="0"].active { background: var(--purple); border-color: var(--purple); }
+
+.vdiv { width: 1px; height: 44px; background: var(--border); align-self: flex-end; margin: 0 4px; }
+
+/* Action row */
+.action-row { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 24px; }
+.btn { padding: 9px 20px; border-radius: 8px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.18s; white-space: nowrap; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: #3d6ef0; }
+.btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.btn-ghost:hover { background: var(--border); }
+.btn-danger { background: rgba(239,68,68,0.12); color: var(--red); border: 1px solid rgba(239,68,68,0.25); }
+.btn-danger:hover { background: rgba(239,68,68,0.22); }
+
+/* Summary */
+.summary-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.compare-btns { display: flex; gap: 6px; }
+.compare-btn { padding: 4px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); color: var(--muted); font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.18s; }
+.compare-btn.active { background: var(--surface); border-color: var(--accent); color: var(--accent); }
+
+.summary-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 24px; }
+.s-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.s-lbl { font-size: 10px; color: var(--muted); margin-bottom: 6px; }
+.s-val { font-size: 20px; font-weight: 700; }
+.s-delta { font-size: 11px; margin-top: 5px; font-weight: 600; }
+.s-delta.up { color: var(--green); }
+.s-delta.down { color: var(--red); }
+.s-delta.flat { color: var(--muted); }
+
+/* Graph */
+.graph-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; }
+.graph-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; flex-wrap: wrap; gap: 10px; }
+.graph-title { font-size: 13px; font-weight: 600; }
+.metric-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.metric-tab { padding: 5px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); color: var(--muted); font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.18s; }
+.metric-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* Tabs */
+.page-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 0; }
+.page-tab { padding: 10px 18px; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.18s; }
+.page-tab:hover { color: var(--text); }
+.page-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* Table */
+.table-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.table-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.table-title { font-size: 13px; font-weight: 600; }
+.filter-row { display: flex; align-items: center; gap: 10px; padding: 10px 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.filter-label { font-size: 11px; color: var(--muted); }
+.filter-input { background: var(--surface2); border: 1px solid var(--border); color: var(--text); font-size: 12px; padding: 5px 10px; border-radius: 6px; outline: none; color-scheme: dark; }
+.filter-input:focus { border-color: var(--accent); }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th { background: var(--surface2); color: var(--muted); font-weight: 600; padding: 10px 12px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; }
+th:first-child, th:nth-child(2), th.center { text-align: center; }
+td { padding: 9px 12px; border-bottom: 1px solid rgba(46,51,72,0.4); text-align: right; white-space: nowrap; }
+td:first-child, td:nth-child(2), td.center { text-align: center; }
+td.memo-cell { text-align: left; max-width: 180px; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 11px; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+/* 검수 자동표시: 이전 시간대보다 감소(누적인데 줄어듦) = 빨강, 전일 동시간대 대비 큰 변동 = 주황 */
+td.cell-drop { background: rgba(239,68,68,0.18); color: #fca5a5 !important; font-weight: 700; }
+td.cell-drop::after { content: ' ▼'; font-size: 9px; opacity: 0.9; }
+td.cell-diff { background: rgba(245,158,11,0.16); color: #fcd34d !important; font-weight: 700; }
+.verify-legend { font-size: 11px; color: var(--muted); display: flex; gap: 14px; align-items: center; }
+.verify-legend .lg { display: inline-flex; align-items: center; gap: 5px; }
+.verify-legend .sw { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+
+.badge-time { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 10px; font-weight: 700; }
+.badge-12    { background: rgba(79,127,255,0.15); color: #6b9fff; }
+.badge-16    { background: rgba(245,158,11,0.15); color: var(--yellow); }
+.badge-final { background: rgba(34,197,94,0.15);  color: var(--green); }
+
+.del-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px; transition: color 0.15s; }
+.del-btn:hover { color: var(--red); }
+.edit-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px 6px; border-radius: 4px; transition: color 0.15s; }
+.edit-btn:hover { color: var(--accent); }
+
+.time-filter-btn { padding: 4px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); color: var(--muted); font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.18s; }
+.time-filter-btn.active { background: var(--surface); border-color: var(--accent); color: var(--accent); }
+.dow-period-btn { padding: 4px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); color: var(--muted); font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.18s; }
+.dow-period-btn.active { background: var(--surface); border-color: var(--green); color: var(--green); }
+
+.empty-state { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 13px; }
+
+/* 요일별 평균 */
+.dow-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; padding: 20px; }
+.dow-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 12px; text-align: center; }
+.dow-name { font-size: 11px; color: var(--muted); margin-bottom: 8px; font-weight: 700; }
+.dow-roas { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+.dow-sub { font-size: 10px; color: var(--muted); line-height: 1.6; }
+.dow-count { font-size: 10px; color: var(--border); margin-top: 6px; }
+.dow-chart-wrap { padding: 0 20px 20px; }
+
+/* 소유자 배지 */
+.owner-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 14px; border-radius: 20px;
+  background: rgba(167,139,250,0.12); color: var(--purple);
+  font-size: 11px; font-weight: 700;
+  border: 1px solid rgba(167,139,250,0.3);
+  white-space: nowrap;
+}
+.owner-badge::before { content: ''; }
+
+/* 매출 채널 그룹 */
+.sales-groups { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.channel-group { border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; background: rgba(255,255,255,0.015); }
+.group-title { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.channel-row { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 10px; }
+.channel-row:last-child { margin-bottom: 0; }
+.channel-name { font-size: 11px; font-weight: 700; color: var(--muted); min-width: 56px; align-self: flex-end; padding-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">T</div>
+  <h1 id="header-title">팀 <span id="header-brand">실시간 리포트</span></h1>
+  <span class="header-time" id="header-time"></span>
+</div>
+
+<div class="main">
+
+  <!-- 브랜드 선택 -->
+  <div class="brand-selector-wrap">
+    <div class="section-label">브랜드 선택</div>
+    <div class="brand-selector">
+      <button class="brand-btn active" data-brand="graniesalad" data-label="그래니살라" onclick="selectBrand(this)">그래니살라</button>
+      <button class="brand-btn" data-brand="basetune" data-label="베이스튠" onclick="selectBrand(this)">베이스튠</button>
+      <button class="brand-btn" data-brand="hattke" data-label="해트케" onclick="selectBrand(this)">해트케</button>
+      <button class="brand-btn" data-brand="salagris" data-label="샐러그리스" onclick="selectBrand(this)">샐러그리스</button>
+    </div>
+  </div>
+
+  <!-- 입력 -->
+  <div class="section-label">데이터 입력</div>
+  <div class="input-card">
+    <div class="input-block">
+      <div class="input-group">
+        <label>날짜</label>
+        <input type="date" id="inp-date">
+      </div>
+      <div class="input-group">
+        <label>시간대</label>
+        <div class="time-btns">
+          <button class="time-btn active" data-t="12" onclick="selectTime(this)">12시</button>
+          <button class="time-btn" data-t="16" onclick="selectTime(this)">16시</button>
+          <button class="time-btn" data-t="0"  onclick="selectTime(this)">최종</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 매출 그룹 -->
+    <div class="section-label" style="margin-bottom:10px">매출</div>
+    <div class="sales-groups">
+
+      <!-- 자사몰 -->
+      <div class="channel-group">
+        <div class="group-title" style="color:var(--accent)">자사몰</div>
+        <div class="channel-row">
+          <span class="channel-name">카페24</span>
+          <div class="input-group">
+            <label>매출</label>
+            <input type="number" id="inp-cafe24-sales" placeholder="0">
+          </div>
+          <div class="input-group">
+            <label>주문건수</label>
+            <input type="number" id="inp-cafe24-orders" placeholder="0">
+          </div>
+          <div class="input-group">
+            <label>환불</label>
+            <input type="number" id="inp-cafe24-refund" placeholder="0">
+          </div>
+        </div>
+      </div>
+
+      <!-- 쿠팡 -->
+      <div class="channel-group">
+        <div class="group-title" style="color:#ff6b35">쿠팡</div>
+        <div class="channel-row">
+          <span class="channel-name" id="cp-slot-name-1">쿠팡 1</span>
+          <div class="input-group">
+            <label>매출</label>
+            <input type="number" id="inp-coupang1-sales" placeholder="0">
+          </div>
+          <div class="input-group">
+            <label>주문건수</label>
+            <input type="number" id="inp-coupang1-orders" placeholder="0">
+          </div>
+          <div class="input-group">
+            <label>환불</label>
+            <input type="number" id="inp-coupang1-refund" placeholder="0">
+          </div>
+          <div class="input-group">
+            <label style="color:#c2410c">쿠폰단가</label>
+            <input type="number" id="inp-coupang1-coupon" placeholder="0" oninput="rtUpdCouponMinus(1)" onchange="rtRememberCoupon(1)"
+                   title="이 계정의 쿠폰 1개당 금액. 판매량만큼 곱해 매출에서 뺍니다. (계정별 저장값이 자동으로 채워지고, 직접 고치면 이 값이 우선)">
+          </div>
+          <div class="input-group">
+            <label style="color:#c2410c">− 차감액</label>
+            <input type="text" id="inp-coupang1-minus" readonly tabindex="-1" placeholder="—"
+                   style="background:#fff7ed;color:#c2410c;font-weight:700;border-color:#fdba74"
+                   title="주문건수(판매량) × 쿠폰단가 — 자동계산">
+          </div>
+          <div class="input-group">
+            <label style="color:#166534">= 실매출</label>
+            <input type="text" id="inp-coupang1-net" readonly tabindex="-1" placeholder="—"
+                   style="background:#f0fdf4;color:#166534;font-weight:800;border-color:#86efac"
+                   title="쿠폰까지 뺀 실제 매출 — 합계·ROAS에 쓰이는 값">
+          </div>
+        </div>
+        <div class="channel-row">
+          <span class="channel-name" id="cp-slot-name-2">쿠팡 2</span>
+          <div class="input-group">
+            <label>매출</label>
+            <input type="number" id="inp-coupang2-sales" placeholder="0">
+          </div>
+          <div class="input-group">
+            <label>주문건수</label>
+            <input type="number" id="inp-coupang2-orders" placeholder="0">
+          </div>
+          <div class="input-group">
+            <label>환불</label>
+            <input type="number" id="inp-coupang2-refund" placeholder="0">
+          </div>
+          <div class="input-group">
+            <label style="color:#c2410c">쿠폰단가</label>
+            <input type="number" id="inp-coupang2-coupon" placeholder="0" oninput="rtUpdCouponMinus(2)" onchange="rtRememberCoupon(2)"
+                   title="이 계정의 쿠폰 1개당 금액. 판매량만큼 곱해 매출에서 뺍니다. (계정별 저장값이 자동으로 채워지고, 직접 고치면 이 값이 우선)">
+          </div>
+          <div class="input-group">
+            <label style="color:#c2410c">− 차감액</label>
+            <input type="text" id="inp-coupang2-minus" readonly tabindex="-1" placeholder="—"
+                   style="background:#fff7ed;color:#c2410c;font-weight:700;border-color:#fdba74"
+                   title="주문건수(판매량) × 쿠폰단가 — 자동계산">
+          </div>
+          <div class="input-group">
+            <label style="color:#166534">= 실매출</label>
+            <input type="text" id="inp-coupang2-net" readonly tabindex="-1" placeholder="—"
+                   style="background:#f0fdf4;color:#166534;font-weight:800;border-color:#86efac"
+                   title="쿠폰까지 뺀 실제 매출 — 합계·ROAS에 쓰이는 값">
+          </div>
+        </div>
+        <div class="channel-row">
+          <span class="channel-name" id="cp-slot-name-3">쿠팡 3</span>
+          <div class="input-group">
+            <label>매출</label>
+            <input type="number" id="inp-coupang3-sales" placeholder="0">
+          </div>
+          <div class="input-group">
+            <label>주문건수</label>
+            <input type="number" id="inp-coupang3-orders" placeholder="0">
+          </div>
+          <div class="input-group">
+            <label>환불</label>
+            <input type="number" id="inp-coupang3-refund" placeholder="0">
+          </div>
+          <div class="input-group">
+            <label style="color:#c2410c">쿠폰단가</label>
+            <input type="number" id="inp-coupang3-coupon" placeholder="0" oninput="rtUpdCouponMinus(3)" onchange="rtRememberCoupon(3)"
+                   title="이 계정의 쿠폰 1개당 금액. 판매량만큼 곱해 매출에서 뺍니다. (계정별 저장값이 자동으로 채워지고, 직접 고치면 이 값이 우선)">
+          </div>
+          <div class="input-group">
+            <label style="color:#c2410c">− 차감액</label>
+            <input type="text" id="inp-coupang3-minus" readonly tabindex="-1" placeholder="—"
+                   style="background:#fff7ed;color:#c2410c;font-weight:700;border-color:#fdba74"
+                   title="주문건수(판매량) × 쿠폰단가 — 자동계산">
+          </div>
+          <div class="input-group">
+            <label style="color:#166534">= 실매출</label>
+            <input type="text" id="inp-coupang3-net" readonly tabindex="-1" placeholder="—"
+                   style="background:#f0fdf4;color:#166534;font-weight:800;border-color:#86efac"
+                   title="쿠폰까지 뺀 실제 매출 — 합계·ROAS에 쓰이는 값">
+          </div>
+        </div>
+        <div class="channel-row">
+          <span class="channel-name" id="cp-slot-name-4">쿠팡 4</span>
+          <div class="input-group">
+            <label>매출</label>
+            <input type="number" id="inp-coupang4-sales" placeholder="0">
+          </div>
+          <div class="input-group">
+            <label>주문건수</label>
+            <input type="number" id="inp-coupang4-orders" placeholder="0">
+          </div>
+          <div class="input-group">
+            <label>환불</label>
+            <input type="number" id="inp-coupang4-refund" placeholder="0">
+          </div>
+          <div class="input-group">
+            <label style="color:#c2410c">쿠폰단가</label>
+            <input type="number" id="inp-coupang4-coupon" placeholder="0" oninput="rtUpdCouponMinus(4)" onchange="rtRememberCoupon(4)"
+                   title="이 계정의 쿠폰 1개당 금액. 판매량만큼 곱해 매출에서 뺍니다. (계정별 저장값이 자동으로 채워지고, 직접 고치면 이 값이 우선)">
+          </div>
+          <div class="input-group">
+            <label style="color:#c2410c">− 차감액</label>
+            <input type="text" id="inp-coupang4-minus" readonly tabindex="-1" placeholder="—"
+                   style="background:#fff7ed;color:#c2410c;font-weight:700;border-color:#fdba74"
+                   title="주문건수(판매량) × 쿠폰단가 — 자동계산">
+          </div>
+          <div class="input-group">
+            <label style="color:#166534">= 실매출</label>
+            <input type="text" id="inp-coupang4-net" readonly tabindex="-1" placeholder="—"
+                   style="background:#f0fdf4;color:#166534;font-weight:800;border-color:#86efac"
+                   title="쿠폰까지 뺀 실제 매출 — 합계·ROAS에 쓰이는 값">
+          </div>
+        </div>
+        <!-- 🎟 계정별 쿠폰 차감 안내(단가는 데일리리포트 생성기에서 저장) -->
+        <div id="rt-coupon-note" style="margin-top:6px;font-size:11px;color:#c2410c;background:#fff7ed;border:1px solid #fdba74;border-radius:6px;padding:5px 8px;display:none"></div>
+      </div>
+
+      <!-- 스마트스토어 -->
+      <div class="channel-group">
+        <div class="group-title" style="color:var(--green)">스마트스토어</div>
+        <div class="channel-row">
+          <span class="channel-name">스토어 1</span>
+          <div class="input-group">
+            <label>매출</label>
+            <input type="number" id="inp-ss1-sales" placeholder="0">
+          </div>
+          <div class="input-group">
+            <label>주문건수</label>
+            <input type="number" id="inp-ss1-orders" placeholder="0">
+          </div>
+          <div class="input-group">
+            <label>환불</label>
+            <input type="number" id="inp-ss1-refund" placeholder="0">
+          </div>
+        </div>
+        <div class="channel-row">
+          <span class="channel-name">스토어 2</span>
+          <div class="input-group">
+            <label>매출</label>
+            <input type="number" id="inp-ss2-sales" placeholder="0">
+          </div>
+          <div class="input-group">
+            <label>주문건수</label>
+            <input type="number" id="inp-ss2-orders" placeholder="0">
+          </div>
+          <div class="input-group">
+            <label>환불</label>
+            <input type="number" id="inp-ss2-refund" placeholder="0">
+          </div>
+        </div>
+        <div class="channel-row">
+          <span class="channel-name">스토어 3</span>
+          <div class="input-group">
+            <label>매출</label>
+            <input type="number" id="inp-ss3-sales" placeholder="0">
+          </div>
+          <div class="input-group">
+            <label>주문건수</label>
+            <input type="number" id="inp-ss3-orders" placeholder="0">
+          </div>
+          <div class="input-group">
+            <label>환불</label>
+            <input type="number" id="inp-ss3-refund" placeholder="0">
+          </div>
+        </div>
+      </div>
+
+      <!-- 직접 추가한 매출처 (수집 없음 · 이름 눌러서 수정) -->
+      <div class="channel-group">
+        <div class="group-title" style="color:var(--muted)">직접 추가</div>
+        <div id="custom-sales"></div>
+        <button class="btn btn-ghost" style="margin-top:4px" onclick="rtCustomAdd('sales')"
+                title="매출·주문건수·환불 입력칸을 한 줄 추가합니다. 이름은 눌러서 고치세요. 합계·ROAS에 자동으로 들어갑니다.">➕ 매출처 추가</button>
+      </div>
+
+    </div>
+
+    <!-- 광고비 -->
+    <div class="input-block">
+      <span class="block-label">광고비</span>
+      <div class="input-group">
+        <label>메타</label>
+        <input type="number" id="inp-meta" placeholder="0">
+      </div>
+      <div class="input-group">
+        <label>구글</label>
+        <input type="number" id="inp-google" placeholder="0">
+      </div>
+      <div class="input-group">
+        <label>틱톡</label>
+        <input type="number" id="inp-tiktok" placeholder="0">
+      </div>
+      <div class="input-group">
+        <label>GFA</label>
+        <input type="number" id="inp-gfa" placeholder="0">
+      </div>
+      <div class="input-group sa-only" style="display:none">
+        <label>네이버SA</label>
+        <input type="number" id="inp-naversa" placeholder="0">
+      </div>
+      <div class="input-group hattke-only" style="display:none">
+        <label>카카오</label>
+        <input type="number" id="inp-kakao" placeholder="0">
+      </div>
+      <div id="custom-ads" style="display:contents"></div>
+      <div class="input-group" style="justify-content:flex-end">
+        <label>&nbsp;</label>
+        <button class="btn btn-ghost" onclick="rtCustomAdd('ads')"
+                title="광고비 항목을 추가합니다. 이름만 고치면 되고 수집은 안 붙습니다. 광고비 합계·ROAS에 자동으로 들어갑니다.">➕ 광고비 추가</button>
+      </div>
+    </div>
+
+    <div class="input-block">
+      <span class="block-label">메모</span>
+      <div class="input-group">
+        <label>메모 (선택)</label>
+        <input type="text" id="inp-memo" class="wide" placeholder="예: 신소재 론칭, 메타 예산 증액 등">
+      </div>
+    </div>
+  </div>
+
+  <div class="action-row" style="flex-wrap:wrap;gap:6px">
+    <span style="font-size:12px;color:var(--muted);align-self:center;font-weight:700">개별수집:</span>
+    <button class="btn btn-ghost" onclick="collectOne('google',this)">구글</button>
+    <button class="btn btn-ghost" onclick="collectOne('tiktok',this)">틱톡</button>
+    <button class="btn btn-ghost" onclick="collectOne('gfa',this)">GFA</button>
+    <button class="btn btn-ghost sa-only" style="display:none" onclick="collectOne('naversa',this)">네이버SA</button>
+    <button class="btn btn-ghost hattke-only" style="display:none" onclick="collectOne('kakao',this)">카카오</button>
+    <button class="btn btn-ghost" onclick="collectOne('meta',this)">메타</button>
+    <button class="btn btn-ghost" onclick="collectOne('cafe24',this)">카페24</button>
+    <button class="btn btn-ghost" onclick="collectOne('coupang',this)">쿠팡</button>
+    <button class="btn btn-ghost" onclick="collectOne('smartstore',this)">스토어</button>
+  </div>
+  <div class="action-row">
+    <button class="btn btn-ghost" id="btn-collect" onclick="collectToday(this)" title="오늘 기준 전 매체 광고비+매출 한번에 수집. 수집서버가 켜져 있어야 합니다.">🔄 전체수집</button>
+    <button class="btn btn-ghost" id="btn-collect-both" onclick="collectBoth(this)" title="그래니살라+베이스튠+해트케 세 브랜드를 순서대로 자동 수집하고 각각 저장합니다. 선택한 시간대(12/16/최종) 기준. 카페24 캡차는 뜰 때마다 풀어주세요.">🔄🔄 3브랜드 수집</button>
+    <button class="btn btn-ghost" onclick="captureReport()">캡처</button>
+    <button class="btn btn-ghost" onclick="importRtSnapshot(false)" title="11:10/15:10 자동수집(무인) 결과를 이 브라우저 표에 불러옵니다. 같은 시간대면 자동수집값으로 덮어씁니다.">🌙 자동수집 불러오기</button>
+    <button class="btn btn-ghost" onclick="rtExport()" title="세 브랜드 기록 전부를 JSON 파일로 내립니다. 다른 계정·다른 PC에서 [가져오기]로 넣으면 같은 데이터를 봅니다.">⬇ 내보내기</button>
+    <button class="btn btn-ghost" onclick="document.getElementById('rt-import-file').click()" title="받은 JSON 파일을 넣습니다. 같은 날짜·같은 시간대는 파일 값으로 덮어쓰고, 없던 기록은 추가합니다.">⬆ 가져오기</button>
+    <input type="file" id="rt-import-file" accept=".json,application/json" style="display:none" onchange="rtImport(this)">
+    <button class="btn btn-ghost" onclick="copyToSheet()">잔디용 복사</button>
+    <button class="btn btn-ghost" onclick="sendToSlack()" title="현재 브랜드의 최신 기록을 슬랙 채널로 전송합니다. (수집서버 slack_config.json 에 웹훅 필요)">📤 슬랙 전송</button>
+    <button class="btn btn-primary" onclick="saveRecord()">저장</button>
+  </div>
+
+  <!-- 구글 소재 성과(실시간) -->
+  <div class="input-block" style="margin-top:14px">
+    <span class="block-label">구글 소재 성과 (실시간)</span>
+    <div class="input-group" style="flex:1 1 100%">
+      <label>Google Ads 광고페이지 URL</label>
+      <input type="text" id="soje-url" class="wide" placeholder="ads.google.com/aw/ads?campaignId=…&adGroupId=…&ocid=… 붙여넣기">
+    </div>
+    <div class="action-row" style="width:100%;margin-top:4px">
+      <button class="btn btn-primary" id="btn-soje" onclick="collectGoogleSoje(this)"
+        title="붙여넣은 캠페인의 '사용중' 광고별로 구글 비용 + 카페24 매출(기여 2시간)을 수집해 실제 ROAS/CPA를 계산하고, 구글 엑셀에 오늘 날짜로 누적 저장합니다. 크롬이 뜹니다(카페24 캡차는 창에서 직접 풀기).">
+        🎯 구글 소재 수집</button>
+      <span style="font-size:11px;color:var(--muted);align-self:center">카페24 매출=기여 2시간 기준(실시간 변동) · 엑셀 날짜별 누적</span>
+    </div>
+    <div id="soje-result" style="width:100%"></div>
+  </div>
+
+  <!-- 요약 -->
+  <div class="summary-header">
+    <span class="section-label" style="margin-bottom:0">최근 저장 기준</span>
+    <div class="compare-btns">
+      <button class="compare-btn active" data-mode="yesterday" onclick="setCompareMode(this)">어제 비교</button>
+      <button class="compare-btn" data-mode="lastweek" onclick="setCompareMode(this)">지난주 비교</button>
+      <button class="compare-btn" data-mode="none" onclick="setCompareMode(this)">비교 없음</button>
+    </div>
+  </div>
+  <div class="summary-grid">
+    <div class="s-card"><div class="s-lbl">총 매출</div><div class="s-val" id="s-revenue">—</div><div class="s-delta flat" id="d-revenue"></div></div>
+    <div class="s-card"><div class="s-lbl">총 광고비</div><div class="s-val" id="s-adspend">—</div><div class="s-delta flat" id="d-adspend"></div></div>
+    <div class="s-card"><div class="s-lbl">ROAS</div><div class="s-val" id="s-roas">—</div><div class="s-delta flat" id="d-roas"></div></div>
+    <div class="s-card"><div class="s-lbl">CPA</div><div class="s-val" id="s-cpa">—</div><div class="s-delta flat" id="d-cpa"></div></div>
+    <div class="s-card"><div class="s-lbl">객단가</div><div class="s-val" id="s-aov">—</div><div class="s-delta flat" id="d-aov"></div></div>
+    <div class="s-card"><div class="s-lbl">자사 비율(주문)</div><div class="s-val" id="s-selfrate">—</div><div class="s-delta flat" id="d-selfrate"></div></div>
+  </div>
+
+  <!-- 그래프 -->
+  <div class="graph-card">
+    <div class="graph-header">
+      <span class="graph-title">트렌드 그래프</span>
+      <div class="metric-tabs">
+        <button class="metric-tab active" onclick="switchMetric('revenue', this)">매출</button>
+        <button class="metric-tab" onclick="switchMetric('roas', this)">ROAS</button>
+        <button class="metric-tab" onclick="switchMetric('adspend', this)">광고비</button>
+        <button class="metric-tab" onclick="switchMetric('cpa', this)">CPA</button>
+        <button class="metric-tab" onclick="switchMetric('aov', this)">객단가</button>
+      </div>
+    </div>
+    <canvas id="trend-chart" height="75"></canvas>
+  </div>
+
+  <!-- 탭 -->
+  <div class="table-card">
+    <div class="page-tabs">
+      <div class="page-tab active" onclick="switchTab('records', this)">리포트 기록</div>
+      <div class="page-tab" onclick="switchTab('dow', this)">요일별 평균</div>
+    </div>
+
+    <!-- 리포트 기록 탭 -->
+    <div class="tab-panel active" id="tab-records">
+      <div class="table-header">
+        <span class="table-title">전체 기록</span>
+        <div class="verify-legend">
+          <span class="lg"><span class="sw" style="background:rgba(239,68,68,0.5)"></span>이전 시간대보다 감소 ▼</span>
+          <span class="lg"><span class="sw" style="background:rgba(245,158,11,0.5)"></span>전일 동시간대 대비 ±50%↑ 변동</span>
+          <span style="opacity:0.7">(셀에 마우스 올리면 사유 표시)</span>
+        </div>
+        <button class="btn btn-danger" onclick="clearAll()">전체 초기화</button>
+      </div>
+      <div class="filter-row">
+        <span class="filter-label">기간 필터</span>
+        <input type="date" class="filter-input" id="filter-from" onchange="renderTable(); renderChart();">
+        <span style="font-size:11px; color:var(--muted)">~</span>
+        <input type="date" class="filter-input" id="filter-to" onchange="renderTable(); renderChart();">
+        <button class="btn btn-ghost" style="padding:5px 14px; font-size:11px;" onclick="resetFilter()">초기화</button>
+        <div style="margin-left:auto; display:flex; gap:6px;">
+          <button class="time-filter-btn active" data-tf="all" onclick="setTableTimeFilter(this)">전체</button>
+          <button class="time-filter-btn" data-tf="12" onclick="setTableTimeFilter(this)">12시</button>
+          <button class="time-filter-btn" data-tf="16" onclick="setTableTimeFilter(this)">16시</button>
+          <button class="time-filter-btn" data-tf="0" onclick="setTableTimeFilter(this)">최종</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="center">날짜</th>
+              <th class="center">시간</th>
+              <th>총 매출</th>
+              <th>카페24</th>
+              <th>쿠팡합계</th>
+              <th>스마트스토어</th>
+              <th>총 광고비</th>
+              <th>메타</th>
+              <th>구글</th>
+              <th>틱톡</th>
+              <th>GFA</th>
+              <th class="sa-only" style="display:none">네이버SA</th>
+              <th class="hattke-only" style="display:none">카카오</th>
+              <th>주문건수</th>
+              <th>ROAS</th>
+              <th>CPA</th>
+              <th>객단가</th>
+              <th>자사율(건)</th>
+              <th>메모</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="records-tbody"></tbody>
+        </table>
+        <div class="empty-state" id="empty-state">저장된 리포트가 없습니다.</div>
+      </div>
+    </div>
+
+    <!-- 요일별 평균 탭 -->
+    <div class="tab-panel" id="tab-dow">
+      <div class="table-header">
+        <span class="table-title">요일별 평균 <span style="font-size:10px; color:var(--muted); font-weight:400">(최종 기준)</span></span>
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+          <div style="display:flex; gap:4px;">
+            <button class="dow-period-btn active" data-period="all" onclick="setDowPeriod(this)">전체</button>
+            <button class="dow-period-btn" data-period="1w" onclick="setDowPeriod(this)">1주</button>
+            <button class="dow-period-btn" data-period="2w" onclick="setDowPeriod(this)">2주</button>
+            <button class="dow-period-btn" data-period="3w" onclick="setDowPeriod(this)">3주</button>
+            <button class="dow-period-btn" data-period="1m" onclick="setDowPeriod(this)">한달</button>
+          </div>
+          <div class="metric-tabs" id="dow-metric-tabs">
+            <button class="metric-tab active" onclick="switchDowMetric('roas', this)">ROAS</button>
+            <button class="metric-tab" onclick="switchDowMetric('revenue', this)">매출</button>
+            <button class="metric-tab" onclick="switchDowMetric('adspend', this)">광고비</button>
+            <button class="metric-tab" onclick="switchDowMetric('cpa', this)">CPA</button>
+            <button class="metric-tab" onclick="switchDowMetric('aov', this)">객단가</button>
+          </div>
+        </div>
+      </div>
+      <div class="dow-grid" id="dow-grid"></div>
+      <div class="dow-chart-wrap">
+        <canvas id="dow-chart" height="60"></canvas>
+      </div>
+      <div class="empty-state" id="dow-empty" style="display:none">데이터가 부족합니다.</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ──── 브랜드 & 스토리지 ────
+const BRANDS = {
+  graniesalad: { label: '그래니살라', key: 'team_realtime_graniesalad_v1' },
+  basetune:    { label: '베이스튠',     key: 'team_realtime_basetune_v1'    },
+  hattke:      { label: '해트케',       key: 'team_realtime_hattke_v1'      },
+  salagris:    { label: '샐러그리스',   key: 'team_realtime_salagris_v1'    },   // 2026-10-23
+};
+let currentBrand = 'graniesalad';
+
+function getStoreKey() { return BRANDS[currentBrand].key; }
+
+let records = [];
+let currentMetric  = 'revenue';
+let dowMetric      = 'roas';
+let dowPeriod      = 'all';
+let tableTimeFilter = 'all';
+let compareMode    = 'yesterday';
+let chart    = null;
+let dowChart = null;
+
+function loadBrandData() {
+  records = JSON.parse(localStorage.getItem(getStoreKey()) || '[]');
+}
+
+function applyBrand(brandKey) {
+  currentBrand = brandKey;
+  if (typeof rtSeedCpAcct === 'function') {        // 🎟 브랜드별 쿠팡 계정 슬롯 고정 배정
+    rtSeedCpAcct();
+    if (typeof rtApplyCouponDefaults === 'function') setTimeout(rtApplyCouponDefaults, 0);
+  }
+  try { localStorage.setItem('rt_last_brand', brandKey); } catch (e) {}   // 새로고침해도 이 브랜드로 복귀
+  document.querySelectorAll('.brand-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.brand === brandKey));
+
+  // 헤더 브랜드명 업데이트
+  document.getElementById('header-brand').textContent = BRANDS[currentBrand].label + ' 실시간 리포트';
+
+  loadBrandData();
+  clearInputs();
+  resetSummary();
+  renderTable();
+  renderChart();
+  if (records.length > 0) updateSummary(records[records.length - 1]);
+  document.querySelectorAll('.hattke-only').forEach(el => { el.style.display = brandKey === 'hattke' ? '' : 'none'; });
+  document.querySelectorAll('.sa-only').forEach(el => { el.style.display = (RT_COLLECT[brandKey] || {}).saAcct ? '' : 'none'; });   // 네이버SA = SA 계정 있는 브랜드(해트케·샐러그리스)
+  rtCustomLoad(); rtCustomRender();               // 직접 추가한 칸은 브랜드별로 따로
+  refreshSojeUrl();
+  restoreSoje();   // 이 브랜드의 마지막 구글 소재 표를 복원(새로고침해도 유지)
+}
+
+// 브랜드 전환 시 소재 URL 입력칸을 그 브랜드 기본값으로(비어있을 때만 채움 — 사용자가 붙여넣은 건 보존)
+function refreshSojeUrl() {
+  const el = document.getElementById('soje-url');
+  if (!el) return;
+  const def = (RT_COLLECT[currentBrand] || {}).sojeUrl || '';
+  if (!el.value.trim() || el.dataset.brand !== currentBrand) { el.value = def; }
+  el.dataset.brand = currentBrand;
+}
+
+function selectBrand(btn) { applyBrand(btn.dataset.brand); }
+
+// ──── 시계 ────
+function updateClock() {
+  const now = new Date();
+  const p = n => String(n).padStart(2, '0');
+  document.getElementById('header-time').textContent =
+    `${now.getFullYear()}.${p(now.getMonth()+1)}.${p(now.getDate())}  ${p(now.getHours())}:${p(now.getMinutes())}:${p(now.getSeconds())}`;
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+function today() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+document.getElementById('inp-date').value = today();
+
+function selectTime(btn) {
+  document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (btn.dataset.t === '0') {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    document.getElementById('inp-date').value =
+      `${yesterday.getFullYear()}-${String(yesterday.getMonth()+1).padStart(2,'0')}-${String(yesterday.getDate()).padStart(2,'0')}`;
+  } else {
+    document.getElementById('inp-date').value = today();
+  }
+}
+
+function getSelectedTime() {
+  return document.querySelector('.time-btn.active')?.dataset.t || '12';
+}
+
+function setCompareMode(btn) {
+  compareMode = btn.dataset.mode;
+  document.querySelectorAll('.compare-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (records.length > 0) updateSummary(records[records.length - 1]);
+}
+
+function num(id) { return parseFloat(document.getElementById(id).value) || 0; }
+function fmt(n)  { return Math.round(n).toLocaleString(); }
+function fmtWon(n) { return Math.round(n).toLocaleString() + '원'; }
+
+// ━━ 🎟 쿠팡 계정별 쿠폰 차감 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   특정 계정은 쿠폰이 계속 적용되므로(사용자 2026-08-05) 계정별 단가를 저장해두고 자동으로 뺀다.
+//   단가 저장소 = 수집서버 `/coupon`(수집\쿠폰설정.json) — 데일리리포트와 같은 파일을 본다.
+//   차감액 = 판매량(주문건수 칸에 들어가는 값) × 계정 쿠폰단가.
+let RT_COUPON = {};                       // {brand:{acctId:단가}}
+const RT_COUPON_LS = 'cp_coupon_cache';   // 데일리리포트와 같은 캐시 키
+// ★쿠팡 슬롯 = 계정 고정 배정(데일리리포트와 동일한 계정 목록).
+//   수집 전에도 '쿠팡1=…'처럼 보이고 그 계정 쿠폰단가가 미리 채워진다.
+//   수집 결과는 순서가 아니라 **계정 id로 매칭**해 같은 슬롯에 들어간다(2026-08-05 요청).
+const RT_CP_ACCOUNTS = { granny: [], hattke: [], basetune: [] };   // 계정 목록은 비공개 시트에서(공유저장.js dbConfig)
+function rtCpAccounts() { return RT_CP_ACCOUNTS[rtCouponBrand()] || RT_CP_ACCOUNTS.granny; }
+function rtSlotOfAcct(id) {                     // 계정 → 슬롯번호(없으면 0)
+  const list = rtCpAccounts();
+  const i = list.findIndex(a => a.id === id);
+  return i >= 0 ? i + 1 : 0;
+}
+let RT_CP_ACCT = {};                      // {1:'…', 2:'…', ...}
+function rtSeedCpAcct() {                 // 브랜드의 고정 계정으로 슬롯 채우기
+  RT_CP_ACCT = {};
+  rtCpAccounts().slice(0, 4).forEach((a, i) => { RT_CP_ACCT[String(i + 1)] = a.id; });
+  try { localStorage.setItem('rt_cp_acct', JSON.stringify(RT_CP_ACCT)); } catch (e) {}
+}
+
+function rtCouponBrand() {
+  // 쿠폰설정 파일의 키는 수집 브랜드키(granny/hattke/basetune) — 실시간의 currentBrand(graniesalad 등)와 다르다.
+  try { return (RT_COLLECT[currentBrand] || {}).coupang || currentBrand; } catch (e) { return currentBrand; }
+}
+function rtCouponOf(slot) {
+  const acct = RT_CP_ACCT[String(slot)];
+  if (!acct) return 0;
+  return Number((RT_COUPON[rtCouponBrand()] || {})[acct] || 0) || 0;
+}
+function rtCouponMinus(r, slot) {          // 그 슬롯의 차감액
+  const qty = Number(r['coupang' + slot + 'Orders'] || 0);
+  // 화면의 쿠폰단가 칸이 우선(직접 수정 가능), 비어 있으면 계정별 저장값
+  const typed = Number(r['coupang' + slot + 'Coupon'] || 0);
+  const p = typed > 0 ? typed : rtCouponOf(slot);
+  return p ? qty * p : 0;      // ★판매량이 마이너스면 차감액도 마이너스(환원) — 0으로 뭉개지 않음
+}
+
+// 쿠폰단가/주문건수가 바뀌면 그 행의 차감액 표시 갱신
+function rtUpdCouponMinus(slot) {
+  const g = id => document.getElementById(id);
+  const qty = Number((g('inp-coupang' + slot + '-orders') || {}).value || 0);
+  const typed = Number((g('inp-coupang' + slot + '-coupon') || {}).value || 0);
+  const p = typed > 0 ? typed : rtCouponOf(slot);
+  const box = g('inp-coupang' + slot + '-minus');
+  const minus = p ? qty * p : 0;
+  if (box) box.value = minus ? ((minus > 0 ? '-' : '+') + Math.abs(minus).toLocaleString()) : '';
+  // 실매출 = 매출 − 환불 − 쿠폰차감 (매출 칸은 수집된 원래 값 그대로 둔다)
+  const salesEl = g('inp-coupang' + slot + '-sales');
+  const net = g('inp-coupang' + slot + '-net');
+  if (net) {
+    const sales = Number((salesEl || {}).value || 0);
+    const refund = Number((g('inp-coupang' + slot + '-refund') || {}).value || 0);
+    net.value = String((salesEl || {}).value || '').trim() === ''
+      ? '' : (sales - refund - minus).toLocaleString();   // ★마이너스 그대로
+  }
+}
+function rtUpdCouponMinusAll() { for (let n = 1; n <= 4; n++) rtUpdCouponMinus(n); }
+
+// 쿠팡 1~4 라벨에 실제 계정 표시 — 어느 행이 어느 계정인지 안 보이면 수정할 수가 없다(2026-08-05 지적).
+function rtRenderCpNames() {
+  for (let n = 1; n <= 4; n++) {
+    const el = document.getElementById('cp-slot-name-' + n); if (!el) continue;
+    const acct = RT_CP_ACCT[String(n)];
+    const meta = rtCpAccounts().find(a => a.id === acct);
+    const p = acct ? rtCouponOf(n) : 0;
+    el.innerHTML = acct
+      ? `쿠팡 ${n} <span style="color:#c2410c;font-size:10.5px;font-weight:700">${meta ? meta.label : acct}</span>`
+        + `<span style="color:#9aa6b8;font-size:9.5px;display:block">${acct}${p ? ' · 쿠폰 ' + p.toLocaleString() : ''}</span>`
+      : `쿠팡 ${n} <span style="color:#9aa6b8;font-size:10px">(미사용)</span>`;
+  }
+}
+
+// 쿠폰단가를 직접 고치면 그 계정 기본값으로 기억 → 데일리리포트에도 같이 적용된다
+async function rtRememberCoupon(slot) {
+  rtUpdCouponMinus(slot);
+  const acct = RT_CP_ACCT[String(slot)];
+  if (!acct) return;                               // 계정을 모르면(수집 전) 기억하지 않음
+  const el = document.getElementById('inp-coupang' + slot + '-coupon');
+  const price = String((el || {}).value || '').replace(/,/g, '').trim();
+  const brand = rtCouponBrand();
+  const now = Number(price) || 0;
+  if ((Number((RT_COUPON[brand] || {})[acct] || 0) || 0) === now) return;
+  RT_COUPON[brand] = RT_COUPON[brand] || {};
+  if (!now) delete RT_COUPON[brand][acct]; else RT_COUPON[brand][acct] = now;
+  try { localStorage.setItem(RT_COUPON_LS, JSON.stringify(RT_COUPON)); } catch (e) {}
+  try {
+    const d = await (await fetch(`${SUSERVER}/coupon?brand=${encodeURIComponent(brand)}&acct=${encodeURIComponent(acct)}&price=${encodeURIComponent(price)}`)).json();
+    if (d && d.coupon) { RT_COUPON = d.coupon; try { localStorage.setItem(RT_COUPON_LS, JSON.stringify(RT_COUPON)); } catch (e) {} }
+  } catch (e) {}
+  if (typeof renderRtCouponNote === 'function') renderRtCouponNote();
+}
+
+// 계정별 저장 단가를 '비어 있는' 쿠폰칸에만 채운다(직접 입력값은 존중).
+function rtApplyCouponDefaults() {
+  for (let n = 1; n <= 4; n++) {
+    const el = document.getElementById('inp-coupang' + n + '-coupon');
+    if (el && String(el.value || '').trim() === '') {
+      const p = rtCouponOf(n);
+      if (p) el.value = String(p);
+    }
+  }
+  rtUpdCouponMinusAll();
+  if (typeof rtRenderCpNames === 'function') rtRenderCpNames();
+  if (typeof renderRtCouponNote === 'function') renderRtCouponNote();
+}
+// 주문건수를 바꿔도 차감액이 따라오게
+window.addEventListener('load', () => setTimeout(() => {
+  for (let n = 1; n <= 4; n++) {
+    ['orders', 'sales', 'refund'].forEach(f => {
+      const el = document.getElementById('inp-coupang' + n + '-' + f);
+      if (el) el.addEventListener('input', () => rtUpdCouponMinus(n));
+    });
+  }
+  rtSeedCpAcct();
+  rtApplyCouponDefaults();
+}, 1000));
+async function loadRtCoupon(silent) {
+  try { RT_COUPON = JSON.parse(localStorage.getItem(RT_COUPON_LS) || '{}') || {}; } catch (e) { RT_COUPON = {}; }
+  try {
+    const d = await (await fetch(`${SUSERVER}/coupon`)).json();
+    if (d && d.coupon) { RT_COUPON = d.coupon; try { localStorage.setItem(RT_COUPON_LS, JSON.stringify(RT_COUPON)); } catch (e) {} }
+  } catch (e) { if (!silent) console.warn('쿠폰 설정 로드 실패(캐시 사용)'); }
+  if (typeof rtApplyCouponDefaults === 'function') rtApplyCouponDefaults();
+}
+window.addEventListener('load', () => setTimeout(() => loadRtCoupon(true), 900));
+
+// 어떤 슬롯에 어느 계정·쿠폰이 적용 중인지 화면에 보여준다(적용 사실이 안 보이면 신뢰 못 하므로).
+function renderRtCouponNote() {
+  // 행마다 쿠폰단가·차감액·실매출이 보이므로, 여기선 '어느 슬롯이 어느 계정인지'만 알려준다.
+  const box = document.getElementById('rt-coupon-note'); if (!box) return;
+  const names = [];
+  for (let n = 1; n <= 4; n++) { const a = RT_CP_ACCT[String(n)]; if (a) names.push(`쿠팡${n}=${a}`); }
+  if (!names.length) { box.style.display = 'none'; return; }
+  box.style.display = '';
+  box.innerHTML = '🎟 계정 ' + names.join(' · ')
+    + ' — 쿠폰단가를 고치면 그 계정 기본값으로 기억되고 데일리리포트에도 같이 적용됩니다.';
+}
+
+// ──── 직접 추가하는 입력칸 (수집 없음 · 브랜드별) ────
+// 매출처: 이름 + 매출/주문건수/환불  ·  광고비: 이름 + 금액. 이름만 고치면 되고 수집기는 안 붙는다.
+// 저장 키는 레코드에 cs_<id>Sales/Orders/Refund, ca_<id> 로 들어가고,
+// 합계(매출·주문·광고비·ROAS·CPA·객단가)는 calcMetrics가 **키 접두사로 훑어서** 더한다
+// → 나중에 칸을 지워도 옛 기록의 숫자는 그대로 합계에 남는다(값이 사라지지 않게).
+const RT_CUSTOM_LS = brand => 'rt_custom_' + (brand || currentBrand);
+let RT_CUSTOM = { sales: [], ads: [] };
+
+function rtCustomLoad() {
+  try { RT_CUSTOM = JSON.parse(localStorage.getItem(RT_CUSTOM_LS()) || 'null') || { sales: [], ads: [] }; }
+  catch (e) { RT_CUSTOM = { sales: [], ads: [] }; }
+  RT_CUSTOM.sales = RT_CUSTOM.sales || []; RT_CUSTOM.ads = RT_CUSTOM.ads || [];
+}
+function rtCustomSave() {
+  try { localStorage.setItem(RT_CUSTOM_LS(), JSON.stringify(RT_CUSTOM)); } catch (e) {}
+}
+function rtCustomNewId() { return 'c' + Date.now().toString(36) + Math.floor(Math.random() * 1000); }
+
+function rtCustomAdd(kind) {                       // kind: 'sales' | 'ads'
+  const list = RT_CUSTOM[kind];
+  list.push({ id: rtCustomNewId(), name: kind === 'sales' ? '새 매출처' : '새 광고비' });
+  rtCustomSave(); rtCustomRender();
+  const el = document.querySelector(`[data-cname="${list[list.length - 1].id}"]`);
+  if (el) { el.focus(); document.execCommand && document.execCommand('selectAll', false, null); }
+}
+function rtCustomRename(kind, id, name) {
+  const it = (RT_CUSTOM[kind] || []).find(x => x.id === id);
+  if (!it) return;
+  it.name = (name || '').trim() || (kind === 'sales' ? '새 매출처' : '새 광고비');
+  rtCustomSave();
+  if (records.length) renderTable();               // 표·리포트 문구의 이름도 갱신
+}
+function rtCustomRemove(kind, id) {
+  const it = (RT_CUSTOM[kind] || []).find(x => x.id === id);
+  if (!it) return;
+  if (!confirm(`'${it.name}' 입력칸을 없앨까요?\n\n이미 저장된 날짜의 숫자는 합계에 그대로 남습니다(값은 안 지웁니다).`)) return;
+  RT_CUSTOM[kind] = RT_CUSTOM[kind].filter(x => x.id !== id);
+  rtCustomSave(); rtCustomRender();
+}
+
+function rtCustomRender() {
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const nameBox = (kind, it) =>
+    `<span class="channel-name" contenteditable="true" data-cname="${it.id}" spellcheck="false"
+       title="이름을 눌러 바로 고칠 수 있습니다"
+       style="min-width:96px;outline:none;border-bottom:1px dashed var(--muted);cursor:text"
+       onblur="if(this.isConnected)rtCustomRename('${kind}','${it.id}',this.textContent)"
+       onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${esc(it.name)}</span>`;
+  const del = (kind, it) =>
+    `<button class="del-btn" title="이 입력칸 없애기" onclick="rtCustomRemove('${kind}','${it.id}')">✕</button>`;
+
+  const sBox = document.getElementById('custom-sales');
+  if (sBox) sBox.innerHTML = RT_CUSTOM.sales.map(it => `
+    <div class="channel-row">
+      ${nameBox('sales', it)}
+      <div class="input-group"><label>매출</label><input type="number" id="inp-cs-${it.id}-sales" placeholder="0"></div>
+      <div class="input-group"><label>주문건수</label><input type="number" id="inp-cs-${it.id}-orders" placeholder="0"></div>
+      <div class="input-group"><label>환불</label><input type="number" id="inp-cs-${it.id}-refund" placeholder="0"></div>
+      ${del('sales', it)}
+    </div>`).join('');
+
+  const aBox = document.getElementById('custom-ads');
+  // ★이름칸·✕를 <label> 안에 넣으면 안 된다 — 라벨이 클릭을 안쪽 버튼(✕)으로 넘겨서
+  //   이름을 누르는 순간 항목이 지워졌다(2026-09-28 실측).
+  if (aBox) aBox.innerHTML = RT_CUSTOM.ads.map(it => `
+    <div class="input-group" style="align-items:flex-start">
+      <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;font-size:11px;font-weight:700;color:var(--muted)">${nameBox('ads', it)}${del('ads', it)}</div>
+      <input type="number" id="inp-ca-${it.id}" placeholder="0">
+    </div>`).join('');
+}
+
+// 레코드에서 직접 추가한 칸의 값 모으기 — 저장돼 있는 키를 훑으므로 칸을 지운 뒤에도 합계가 맞다
+function rtCustomSalesOf(r) {                      // {net, orders, items:[{name, net, orders}]}
+  let net = 0, orders = 0; const items = [];
+  Object.keys(r || {}).forEach(k => {
+    const m = /^cs_(.+)Sales$/.exec(k); if (!m) return;
+    const id = m[1];
+    const s = Number(r[k] || 0), rf = Number(r['cs_' + id + 'Refund'] || 0), o = Number(r['cs_' + id + 'Orders'] || 0);
+    net += s - rf; orders += o;
+    items.push({ id, name: rtCustomName('sales', id, r), net: s - rf, orders: o });
+  });
+  return { net, orders, items };
+}
+function rtCustomAdsOf(r) {
+  let sum = 0; const items = [];
+  Object.keys(r || {}).forEach(k => {
+    if (!/^ca_/.test(k)) return;
+    const id = k.slice(3), v = Number(r[k] || 0);
+    sum += v; items.push({ id, name: rtCustomName('ads', id, r), cost: v });
+  });
+  return { sum, items };
+}
+// 이름은 ①현재 설정 ②저장 당시 레코드에 적어둔 이름 순으로 찾는다(칸을 지워도 이름이 남게)
+function rtCustomName(kind, id, r) {
+  const it = (RT_CUSTOM[kind] || []).find(x => x.id === id);
+  if (it) return it.name;
+  const nm = r && r.customNames && r.customNames[id];
+  return nm || (kind === 'sales' ? '기타 매출' : '기타 광고비');
+}
+
+// 저장할 값 모으기: 화면의 직접 추가 칸 → 레코드 필드(cs_*/ca_*) + 이름표(customNames)
+function rtCustomValues() {
+  const num = id => { const el = document.getElementById(id); return el ? (Number(el.value) || 0) : 0; };
+  const out = {}, names = {};
+  (RT_CUSTOM.sales || []).forEach(it => {
+    out['cs_' + it.id + 'Sales']  = num('inp-cs-' + it.id + '-sales');
+    out['cs_' + it.id + 'Orders'] = num('inp-cs-' + it.id + '-orders');
+    out['cs_' + it.id + 'Refund'] = num('inp-cs-' + it.id + '-refund');
+    names[it.id] = it.name;
+  });
+  (RT_CUSTOM.ads || []).forEach(it => { out['ca_' + it.id] = num('inp-ca-' + it.id); names[it.id] = it.name; });
+  out.customNames = names;
+  return out;
+}
+// 기록을 수정할 때 화면 칸 채우기(칸이 지워진 항목은 다시 만들어 보여준다 — 값이 숨지 않게)
+function rtCustomFill(r) {
+  let added = false;
+  Object.keys(r || {}).forEach(k => {
+    const ms = /^cs_(.+)Sales$/.exec(k), ma = /^ca_(.+)$/.exec(k);
+    const id = ms ? ms[1] : (ma ? ma[1] : null); if (!id) return;
+    const kind = ms ? 'sales' : 'ads';
+    if (!(RT_CUSTOM[kind] || []).some(x => x.id === id)) {
+      RT_CUSTOM[kind].push({ id, name: (r.customNames && r.customNames[id]) || (kind === 'sales' ? '기타 매출' : '기타 광고비') });
+      added = true;
+    }
+  });
+  if (added) { rtCustomSave(); rtCustomRender(); }
+  (RT_CUSTOM.sales || []).forEach(it => {
+    ['sales', 'orders', 'refund'].forEach(f => {
+      const el = document.getElementById('inp-cs-' + it.id + '-' + f);
+      if (el) el.value = r['cs_' + it.id + f[0].toUpperCase() + f.slice(1)] || '';
+    });
+  });
+  (RT_CUSTOM.ads || []).forEach(it => {
+    const el = document.getElementById('inp-ca-' + it.id);
+    if (el) el.value = r['ca_' + it.id] || '';
+  });
+}
+
+// ──── 지표 계산 ────
+function calcMetrics(r) {
+  const cafe24Net   = (r.cafe24Sales   || 0) - (r.cafe24Refund   || 0);
+  const coupang1Net = (r.coupang1Sales || 0) - (r.coupang1Refund || 0) - rtCouponMinus(r, 1);
+  const coupang2Net = (r.coupang2Sales || 0) - (r.coupang2Refund || 0) - rtCouponMinus(r, 2);
+  const coupang3Net = (r.coupang3Sales || 0) - (r.coupang3Refund || 0) - rtCouponMinus(r, 3);
+  const coupang4Net = (r.coupang4Sales || 0) - (r.coupang4Refund || 0) - rtCouponMinus(r, 4);
+  const ss1Net      = (r.ss1Sales      || 0) - (r.ss1Refund      || 0);
+  const ss2Net      = (r.ss2Sales      || 0) - (r.ss2Refund      || 0);
+  const ss3Net      = (r.ss3Sales      || 0) - (r.ss3Refund      || 0);
+  const coupangNet  = coupang1Net + coupang2Net + coupang3Net + coupang4Net;
+  const ssNet       = ss1Net + ss2Net + ss3Net;
+  const cus         = rtCustomSalesOf(r);          // 직접 추가한 매출처(매출−환불, 주문건수)
+  const cad         = rtCustomAdsOf(r);            // 직접 추가한 광고비
+  const revenue     = cafe24Net + coupangNet + ssNet + cus.net;
+  const adspend     = (r.meta || 0) + (r.google || 0) + (r.tiktok || 0) + (r.gfa || 0) + (r.naversa || 0) + (r.kakao || 0) + cad.sum;
+  const orders      = (r.cafe24Orders   || 0)
+                    + (r.coupang1Orders || 0) + (r.coupang2Orders || 0) + (r.coupang3Orders || 0) + (r.coupang4Orders || 0)
+                    + (r.ss1Orders      || 0) + (r.ss2Orders      || 0) + (r.ss3Orders      || 0)
+                    + cus.orders;
+  const roas     = adspend > 0 ? revenue / adspend * 100 : 0;
+  const cpa      = orders  > 0 ? adspend / orders : 0;
+  const aov      = orders  > 0 ? revenue / orders : 0;
+  const selfRate = orders > 0 ? (r.cafe24Orders || 0) / orders * 100 : 0;
+  return { revenue, adspend, orders, roas, cpa, aov, selfRate,
+           cafe24Net, coupangNet, ssNet, customSales: cus, customAds: cad,
+           coupang1Net, coupang2Net, coupang3Net, coupang4Net,
+           ss1Net, ss2Net, ss3Net };
+}
+
+function getComparisonRecord(date, time) {
+  if (compareMode === 'none') return null;
+  const d = new Date(date);
+  d.setDate(d.getDate() - (compareMode === 'yesterday' ? 1 : 7));
+  const cmpDate = d.toISOString().slice(0, 10);
+  return records.find(r => r.date === cmpDate && r.time === time) || null;
+}
+
+function deltaHTML(cur, prev, unit, lowerIsBetter) {
+  if (prev == null) return '';
+  const diff = cur - prev;
+  const up   = diff > 0;
+  const good = lowerIsBetter ? !up : up;
+  if (unit === 'won') {
+    const abs  = Math.abs(Math.round(diff));
+    const cls   = abs < 1 ? 'flat' : good ? 'up' : 'down';
+    const arrow = abs < 1 ? '—' : up ? '▲' : '▼';
+    return `<span class="${cls}">${arrow} ${abs.toLocaleString()}원</span>`;
+  } else {
+    const abs  = Math.abs(diff);
+    const cls   = abs < 0.05 ? 'flat' : good ? 'up' : 'down';
+    const arrow = abs < 0.05 ? '—' : up ? '▲' : '▼';
+    return `<span class="${cls}">${arrow} ${abs.toFixed(1)}%</span>`;
+  }
+}
+
+function updateSummary(rec) {
+  const m    = calcMetrics(rec);
+  const cmpR = getComparisonRecord(rec.date, rec.time);
+  const cmp  = cmpR ? calcMetrics(cmpR) : null;
+
+  document.getElementById('s-revenue').textContent  = fmt(m.revenue)  + '원';
+  document.getElementById('s-adspend').textContent  = fmt(m.adspend)  + '원';
+  document.getElementById('s-roas').textContent     = m.roas.toFixed(0) + '%';
+  document.getElementById('s-cpa').textContent      = fmt(m.cpa)      + '원';
+  document.getElementById('s-aov').textContent      = fmt(m.aov)      + '원';
+  document.getElementById('s-selfrate').textContent = m.selfRate.toFixed(1) + '%';
+
+  const roasEl = document.getElementById('s-roas');
+  roasEl.style.color = m.roas >= 300 ? 'var(--green)' : m.roas >= 150 ? 'var(--yellow)' : 'var(--red)';
+
+  document.getElementById('d-revenue').innerHTML  = cmp ? deltaHTML(m.revenue,  cmp.revenue,  'won', false) : '';
+  document.getElementById('d-adspend').innerHTML  = cmp ? deltaHTML(m.adspend,  cmp.adspend,  'won', true)  : '';
+  document.getElementById('d-roas').innerHTML     = cmp ? deltaHTML(m.roas,     cmp.roas,     'pct', false) : '';
+  document.getElementById('d-cpa').innerHTML      = cmp ? deltaHTML(m.cpa,      cmp.cpa,      'won', true)  : '';
+  document.getElementById('d-aov').innerHTML      = cmp ? deltaHTML(m.aov,      cmp.aov,      'won', false) : '';
+  document.getElementById('d-selfrate').innerHTML = cmp ? deltaHTML(m.selfRate, cmp.selfRate, 'pct', false) : '';
+}
+
+function resetSummary() {
+  ['s-revenue','s-adspend','s-roas','s-cpa','s-aov','s-selfrate'].forEach(id => {
+    const el = document.getElementById(id);
+    el.textContent = '—'; el.style.color = '';
+  });
+  ['d-revenue','d-adspend','d-roas','d-cpa','d-aov','d-selfrate'].forEach(id =>
+    document.getElementById(id).innerHTML = '');
+}
+
+// ──── 저장 ────
+function saveRecord(opts) {
+  const date = document.getElementById('inp-date').value;
+  const time = getSelectedTime();
+  if (!date) { alert('날짜를 선택해주세요.'); return; }
+
+  const rec = {
+    id: Date.now(), date, time,
+    cafe24Sales:   num('inp-cafe24-sales'),
+    cafe24Orders:  num('inp-cafe24-orders'),
+    cafe24Refund:  num('inp-cafe24-refund'),
+    coupang1Sales:  num('inp-coupang1-sales'),
+    coupang1Orders: num('inp-coupang1-orders'),
+    coupang1Refund: num('inp-coupang1-refund'),
+    coupang1Coupon: num('inp-coupang1-coupon'),
+    coupang2Sales:  num('inp-coupang2-sales'),
+    coupang2Orders: num('inp-coupang2-orders'),
+    coupang2Refund: num('inp-coupang2-refund'),
+    coupang2Coupon: num('inp-coupang2-coupon'),
+    coupang3Sales:  num('inp-coupang3-sales'),
+    coupang3Orders: num('inp-coupang3-orders'),
+    coupang3Refund: num('inp-coupang3-refund'),
+    coupang3Coupon: num('inp-coupang3-coupon'),
+    coupang4Sales:  num('inp-coupang4-sales'),
+    coupang4Orders: num('inp-coupang4-orders'),
+    coupang4Refund: num('inp-coupang4-refund'),
+    coupang4Coupon: num('inp-coupang4-coupon'),
+    ss1Sales:  num('inp-ss1-sales'),
+    ss1Orders: num('inp-ss1-orders'),
+    ss1Refund: num('inp-ss1-refund'),
+    ss2Sales:  num('inp-ss2-sales'),
+    ss2Orders: num('inp-ss2-orders'),
+    ss2Refund: num('inp-ss2-refund'),
+    ss3Sales:  num('inp-ss3-sales'),
+    ss3Orders: num('inp-ss3-orders'),
+    ss3Refund: num('inp-ss3-refund'),
+    meta:   num('inp-meta'),
+    google: num('inp-google'),
+    tiktok: num('inp-tiktok'),
+    gfa:    num('inp-gfa'),
+    naversa: num('inp-naversa'),
+    kakao:   num('inp-kakao'),
+    ...rtCustomValues(),                    // 직접 추가한 매출처·광고비 (cs_*/ca_*, customNames)
+    memo: document.getElementById('inp-memo').value.trim(),
+  };
+
+  const idx = records.findIndex(r => r.date === date && r.time === time);
+  if (idx >= 0) {
+    const timeLabel = time === '0' ? '최종' : time + '시';
+    if (!(opts && opts.silent) && !confirm(`${date} ${timeLabel} 기록이 이미 있습니다. 덮어쓸까요?`)) return;
+    records[idx] = rec;
+  } else {
+    records.push(rec);
+  }
+
+  // 12 → 16 → 최종 순서
+  const timeOrder = t => t === '12' ? 1 : t === '16' ? 2 : 3;
+  records.sort((a, b) => {
+    if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+    return timeOrder(a.time) - timeOrder(b.time);
+  });
+
+  saveStorage();
+  rtSync(currentBrand, rec);
+  updateSummary(rec);
+  clearInputs();
+  renderTable();
+  renderChart();
+  renderDow();
+}
+
+// ★교차검증용 서버 기록(2026-10-23): 저장한 기록을 수집서버 실시간기록.json 에도 남긴다.
+//   localStorage는 이 브라우저 안에만 있어 데일리리포트·광고비충전과 맞춰볼 수 없었다. 서버가 꺼져 있으면 조용히 넘어감.
+function rtSync(bk, rec) {
+  try { fetch(`${SUSERVER}/rt-save?brand=${bk}&rec=${encodeURIComponent(JSON.stringify(rec))}`).catch(() => {}); } catch (e) {}
+}
+function rtSyncRecent(days) {   // 페이지 열 때 최근 기록 몰아 보내기(하루 1번)
+  const today = new Date().toISOString().slice(0, 10);
+  try { if (localStorage.getItem('rt_sync_day') === today) return; localStorage.setItem('rt_sync_day', today); } catch (e) { return; }
+  const from = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
+  Object.keys(BRANDS).forEach(bk => {
+    let rs = []; try { rs = JSON.parse(localStorage.getItem(BRANDS[bk].key) || '[]'); } catch (e) {}
+    rs.filter(r => r.date >= from).forEach(r => rtSync(bk, r));
+  });
+}
+
+function clearInputs() {
+  ['inp-cafe24-sales','inp-cafe24-orders','inp-cafe24-refund',
+   'inp-coupang1-sales','inp-coupang1-orders','inp-coupang1-refund','inp-coupang1-coupon','inp-coupang1-minus','inp-coupang1-net',
+   'inp-coupang2-sales','inp-coupang2-orders','inp-coupang2-refund','inp-coupang2-coupon','inp-coupang2-minus','inp-coupang2-net',
+   'inp-coupang3-sales','inp-coupang3-orders','inp-coupang3-refund','inp-coupang3-coupon','inp-coupang3-minus','inp-coupang3-net',
+   'inp-coupang4-sales','inp-coupang4-orders','inp-coupang4-refund','inp-coupang4-coupon','inp-coupang4-minus','inp-coupang4-net',
+   'inp-ss1-sales','inp-ss1-orders','inp-ss1-refund',
+   'inp-ss2-sales','inp-ss2-orders','inp-ss2-refund',
+   'inp-ss3-sales','inp-ss3-orders','inp-ss3-refund',
+   'inp-meta','inp-google','inp-tiktok','inp-gfa','inp-naversa','inp-kakao'
+  ].forEach(id => document.getElementById(id).value = '');
+  document.querySelectorAll('[id^="inp-cs-"],[id^="inp-ca-"]').forEach(el => { el.value = ''; });
+  document.getElementById('inp-memo').value = '';
+}
+
+function saveStorage() { localStorage.setItem(getStoreKey(), JSON.stringify(records)); }
+
+// ──── 자동수집 (데일리리포트 수집서버 8765 재사용) ────
+const SUSERVER = 'http://127.0.0.1:8765';
+// 브랜드별 수집 설정: ab=구글/틱톡 키, meta=메타브랜드(없으면 null), gfaAcct=네이버GFA계정,
+// cafe24/coupang=수집 브랜드키(없으면 null), coupangLabel=쿠팡결과 JSON 상위키
+// ab=구글/틱톡 키, meta=메타브랜드, gfaAcct=네이버GFA계정, cafe24=실시간 몰 브랜드키,
+// product=스마트스토어/쿠팡 제품 매칭어(그래니/베이스튠), coupang=쿠팡 수집 브랜드(없으면 null)
+const RT_COLLECT = {
+  graniesalad: { ab:'granny',     meta:'granny',   gfaAcct:'',    cafe24:'granny',   product:'그래니',   coupang:'granny', coupangLabel:'그래니',
+    sojeUrl:'' },
+  basetune:    { ab:'basetuneAB', meta:'basetune', gfaAcct:'', cafe24:'basetune', product:'베이스튠', coupang:'basetune', coupangLabel:'베이스튠',
+    sojeUrl:'' },
+  // 해트케: 스토어 상품명엔 '해트케'가 없어 실시간수집.py kwmap에서 '압력이불'까지 매칭
+
+  hattke:      { ab:'hattkeAB',   meta:'hattke',   gfaAcct:'', cafe24:'hattke',   product:'압력이불', coupang:'hattke', coupangLabel:'해트케',
+    saAcct:'', saReport:'', kakaoAcct:'', pbOnly:true, sojeUrl:'' },
+  // 샐러그리스(2026-10-23): 광고비만(메타·구글·틱톡·네이버SA). 매출 채널(카페24 API·스토어·쿠팡) 미연결 → 손입력
+  salagris:    { ab:'salagrisAB', meta:'salagris', gfaAcct:'', cafe24:'', product:'', coupang:null,
+    saAcct:'', saReport:'', saKw:'salagreece', sojeUrl:'' },
+};
+
+function rtToast(msg, ms) {
+  let el = document.getElementById('rt-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'rt-toast';
+    el.style.cssText = 'position:fixed;left:50%;bottom:28px;transform:translateX(-50%);max-width:90vw;'
+      + 'background:#111827;color:#fff;border:1px solid #374151;padding:12px 18px;border-radius:10px;'
+      + 'font-size:13px;line-height:1.5;z-index:9999;box-shadow:0 6px 24px #0008;white-space:pre-wrap;text-align:center';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.display = 'block';
+  if (el._t) clearTimeout(el._t);
+  if (ms) el._t = setTimeout(() => { el.style.display = 'none'; }, ms);
+}
+
+// 매체별 시간제한(ms) — 너무 오래 걸리면 그 매체만 건너뛰고 다음으로(전체 멈춤 방지)
+const RT_TIMEOUT = { google: 300000, tiktok: 420000, gfa: 150000, meta: 120000, cafe24: 240000, coupang: 360000, smartstore: 180000, naversa: 400000, kakao: 300000 };
+// 매체 목록 — 네이버SA는 계정 설정된 브랜드(해트케)만
+function rtKinds(cfg) {
+  const k = [['google','구글'],['tiktok','틱톡'],['gfa','GFA'],['meta','메타'],['cafe24','카페24'],['coupang','쿠팡'],['smartstore','스토어']];
+  if (cfg && cfg.saAcct) k.splice(3, 0, ['naversa','네이버SA']);
+  if (cfg && cfg.kakaoAcct) k.splice(4, 0, ['kakao','카카오']);
+  // 매출 채널이 아예 없는 브랜드(샐러그리스)는 매출 수집을 건너뜀 — '미설정' 실패로 안 뜨게
+  if (cfg && cfg.cafe24 === '' && !cfg.product && !cfg.coupang) return k.filter(x => !['cafe24','coupang','smartstore'].includes(x[0]));
+  return k;
+}
+let _rtTO = 180000;   // 현재 매체 제한(수집 직전 설정)
+
+// 서버가 수집 중 순간적으로 연결이 끊기면(서버연결실패) 값이 있어도 못 받는 경우가 있어 재시도.
+// 시간초과(AbortError)는 이미 오래 기다린 것이라 재시도 안 함. 연결오류만 재시도.
+const RT_CONN_RETRY = 2;      // 연결 실패 시 추가 재시도 횟수
+const RT_CONN_RETRY_MS = 5000;
+async function rtJ(url) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), _rtTO);
+      const r = await fetch(url + (url.includes('?') ? '&' : '?') + '_dl=' + (Date.now() + _rtTO), { signal: ctrl.signal });   // 서버가 포기된 요청은 건너뜀(2026-10-01)
+      clearTimeout(t);
+      return await r.json();
+    } catch (e) {
+      if (e.name === 'AbortError') return { error: '시간초과(건너뜀)' };
+      if (attempt < RT_CONN_RETRY) {                 // 연결 실패 → 잠시 후 재시도
+        await new Promise(res => setTimeout(res, RT_CONN_RETRY_MS));
+        continue;
+      }
+      return { error: '서버연결실패(수집서버 켜졌나요?)' };
+    }
+  }
+}
+
+// ── 해트케 = 압력이불만(사용자 규칙 2026-09-22) ──
+//   틱톡·구글·메타: 캠페인명에 'pb' / 네이버SA: 캠페인에 '압력' / GFA: 해트케압력 계정(…) 합계
+//   자사몰: 주문 '압력' − 환불 '압력'(실시간수집.py cafe24_hattke_pb) / 쿠팡: … 계정 상품명 '압력'
+//   스마트스토어: 상품명 '압력이불'
+const RT_PB = s => /pb/i.test(String(s || '')) && !/커버|cover/i.test(String(s || ''));   // ★2026-10-16 압력이불커버 제외
+function rtGoogleCsvCost(csv, date, pick) {    // 구글 캠페인 보고서(탭 구분) → pick(캠페인) 행 비용 합
+  const lines = String(csv || '').split(/\r?\n/);
+  const [y, m, d] = date.split('-').map(Number);
+  const want = `${y}년 ${m}월 ${d}일`;
+  const span = lines.slice(0, 3).find(l => /20\d\d년/.test(l)) || '';
+  if (span && span.split(' - ').some(p => p.trim() !== want)) return { error: `구글 CSV 날짜 불일치(${span.trim()})` };
+  const cells = l => l.split('\t').map(c => c.replace(/^"|"$/g, '').trim());
+  const hi = lines.findIndex(l => { const c = cells(l); return c.includes('캠페인') && c.includes('비용'); });
+  if (hi < 0) return { error: '구글 CSV 헤더(캠페인/비용) 없음' };
+  const h = cells(lines[hi]), ic = h.indexOf('캠페인'), iv = h.indexOf('비용');
+  let sum = 0, n = 0;
+  lines.slice(hi + 1).forEach(l => { const c = cells(l); if (c.length > iv && pick(c[ic])) { sum += Number(String(c[iv]).replace(/[^\d.]/g, '')) || 0; n++; } });
+  return { sum, n };
+}
+async function rtMediumHattke(kind, cfg, date) {
+  const s = date, u = date, enc = encodeURIComponent;
+  const set = (id, v) => { const el = document.getElementById(id); if (el && v != null && !isNaN(v)) el.value = Math.round(v); };
+  let d;
+  if (kind === 'google') {
+    d = await rtJ(`${SUSERVER}/collect?medium=${enc('구글')}&brand=hattke&date=${date}`);
+    if (d.error || !d.csv) return '구글❌' + (d.error || 'CSV 없음');
+    const g = rtGoogleCsvCost(d.csv, date, RT_PB);
+    if (g.error) return '구글❌' + g.error;
+    set('inp-google', g.sum); return `구글(pb ${g.n}개) ${Math.round(g.sum).toLocaleString()}`;
+  }
+  if (kind === 'tiktok' || kind === 'meta') {
+    const lab = kind === 'tiktok' ? '틱톡' : '메타';
+    d = await rtJ(`${SUSERVER}/collect?medium=${enc(lab)}&brand=hattke&since=${s}&until=${u}`);
+    if (d.error || !d.rows) return lab + '❌' + (d.error || '행 없음');
+    const rows = d.rows.filter(r => r.date === date && RT_PB(r.campaign));
+    const c = rows.reduce((a, r) => a + (r.cost || 0), 0);
+    set('inp-' + kind, c); return `${lab}(pb ${new Set(rows.map(r => r.campaign)).size}개) ${Math.round(c).toLocaleString()}`;
+  }
+  if (kind === 'naversa') {
+    d = await rtJ(`${SUSERVER}/collect?medium=${enc('네이버SA광고비')}&account=${cfg.saAcct}&report=${cfg.saReport}&keyword=${enc('압력')}&since=${s}&until=${u}`);
+    if (d.error || d.burn3 == null) return '네이버SA❌' + (d.error || '');
+    if (d._kw !== '압력') return '네이버SA❌수집서버 구버전(압력 필터 없음) — 서버 재시작 필요';
+    set('inp-naversa', d.burn3); return '네이버SA(압력) ' + d.burn3.toLocaleString();
+  }
+  if (kind === 'kakao') {
+    d = await rtJ(`${SUSERVER}/collect?medium=${enc('카카오')}&brand=hattke&since=${s}&until=${u}`);
+    if (d.error || !d.rows) return '카카오❌' + (d.error || '행 없음');
+    const rows = d.rows.filter(r => r.date === date && /압력/.test(r.campaign || '') && !/커버/.test(r.campaign || ''));   // ★커버 제외
+    const c = rows.reduce((a, r) => a + (r.cost || 0), 0);   // 실시간은 비용만 본다(사용자 2026-09-28)
+    set('inp-kakao', c);
+    return `카카오(압력 ${new Set(rows.map(r => r.campaign)).size}개) ${Math.round(c).toLocaleString()}`;
+  }
+  if (kind === 'cafe24') {
+    d = await rtJ(`${SUSERVER}/collect?medium=${enc('실시간카페24')}&brand=hattke&date=${date}`);
+    if (d.error || d.sales == null) return '카페24❌' + (d.error || '');
+    if (d.refund == null) return '카페24❌수집기 구버전(압력 필터 없음)';
+    set('inp-cafe24-sales', d.sales); set('inp-cafe24-orders', d.orders); set('inp-cafe24-refund', d.refund);
+    return `카페24(압력) ${d.sales.toLocaleString()}/${d.orders}건 환불 ${d.refund.toLocaleString()}`;
+  }
+  if (kind === 'coupang') {
+    d = await rtJ(`${SUSERVER}/collect?medium=쿠팡&brand=hattke&since=${s}&until=${u}&noad=1`);
+    const blk = (!d.error && d.results && d.results[0]) ? d.results[0]['해트케'] : null;
+    const a = blk && blk.계정별 ? blk.계정별.find(x => x.id === (RT_CP_ACCOUNTS.hattke[0] || {}).id && x.ok) : null;
+    if (!a) return '쿠팡❌' + (d.error || '… 계정 데이터 없음');
+    if (a.압력매출 == null) return '쿠팡❌수집기 구버전(압력 필터 없음)';
+    for (let n = 1; n <= 4; n++) ['sales', 'orders', 'refund'].forEach(f => { const el = document.getElementById('inp-coupang' + n + '-' + f); if (el) el.value = ''; });
+    rtSeedCpAcct();
+    set('inp-coupang1-sales', a.압력매출); set('inp-coupang1-orders', a.압력판매량);
+    if (typeof rtApplyCouponDefaults === 'function') rtApplyCouponDefaults();
+    return `쿠팡(드래프터·압력) ${a.압력매출.toLocaleString()}/${a.압력판매량}개`;
+  }
+  return null;   // gfa·smartstore는 공용 경로(계정/키워드만 해트케 값)
+}
+
+// ── 매체별 수집 1단위 (개별버튼/전체 공용). 결과 메시지 문자열 반환 ──
+async function rtMedium(kind, cfg, date) {
+  const s = date, u = date, enc = encodeURIComponent;
+  const set = (id, v) => { const el = document.getElementById(id); if (el && v != null && !isNaN(v)) el.value = Math.round(v); };
+  if (cfg && cfg.pbOnly) { const hm = await rtMediumHattke(kind, cfg, date); if (hm != null) return hm; }
+  let d;
+  if (kind === 'google') {
+    d = await rtJ(`${SUSERVER}/collect?medium=${enc('구글광고비')}&brand=${cfg.ab}&since=${s}&until=${u}`);
+    if (!d.error && d.burn3 != null) { set('inp-google', d.burn3); return '구글 ' + d.burn3.toLocaleString(); }
+    return '구글❌' + (d.error || '');
+  }
+  if (kind === 'tiktok') {
+    d = await rtJ(`${SUSERVER}/collect?medium=${enc('틱톡예산')}&brand=${cfg.ab}&since=${s}&until=${u}`);
+    if (!d.error && d.burn3 != null) { set('inp-tiktok', d.burn3); return '틱톡 ' + d.burn3.toLocaleString(); }
+    return '틱톡❌' + (d.error || '');
+  }
+  if (kind === 'gfa') {
+    if (!cfg.gfaAcct) return 'GFA—(미운영)';
+    d = await rtJ(`${SUSERVER}/collect?medium=${enc('네이버GFA광고비')}&account=${cfg.gfaAcct}&since=${s}&until=${u}`);
+    if (!d.error && d.burn3 != null) { set('inp-gfa', d.burn3); return 'GFA ' + d.burn3.toLocaleString(); }
+    return 'GFA❌' + (d.error || '');
+  }
+  if (kind === 'meta') {
+    if (!cfg.meta) return '메타—(미설정)';
+    d = await rtJ(`${SUSERVER}/collect?medium=${enc('메타')}&brand=${cfg.meta}&since=${s}&until=${u}`);
+    if (!d.error && d.rows) { const c = d.rows.reduce((a, r) => a + (r.cost || 0), 0); set('inp-meta', c); return '메타 ' + Math.round(c).toLocaleString(); }
+    return '메타❌' + (d.error || '');
+  }
+  if (kind === 'cafe24') {
+    if (!cfg.cafe24) return '카페24—(미설정)';
+    d = await rtJ(`${SUSERVER}/collect?medium=${enc('실시간카페24')}&brand=${cfg.cafe24}&date=${date}`);
+    if (!d.error) { set('inp-cafe24-sales', d.sales); set('inp-cafe24-orders', d.orders);
+      return '카페24 ' + (d.sales != null ? d.sales.toLocaleString() : '?') + '/' + (d.orders != null ? d.orders + '건' : '?'); }
+    return '카페24❌' + (d.error || '');
+  }
+  if (kind === 'coupang') {
+    if (!cfg.coupang) return '쿠팡—(미설정)';
+    d = await rtJ(`${SUSERVER}/collect?medium=쿠팡&brand=${cfg.coupang}&since=${s}&until=${u}&noad=1`);
+    const blk = (!d.error && d.results && d.results[0]) ? d.results[0][cfg.coupangLabel] : null;
+    const accs = (blk && blk.계정별) ? blk.계정별.filter(a => a.ok) : null;
+    if (accs && accs.length) {
+      for (let n = 1; n <= 4; n++) ['sales', 'orders'].forEach(f => { const el = document.getElementById('inp-coupang' + n + '-' + f); if (el) el.value = ''; });
+      rtSeedCpAcct();                              // 슬롯=고정 계정
+      const spare = [];                            // 목록에 없는 계정은 남는 슬롯에
+      accs.forEach(a => {
+        const n = rtSlotOfAcct(a.id);
+        if (n) { set('inp-coupang' + n + '-sales', a.매출); set('inp-coupang' + n + '-orders', a.판매량); }
+        else spare.push(a);
+      });
+      let free = 1;
+      spare.forEach(a => {
+        while (free <= 4 && RT_CP_ACCT[String(free)]) free++;
+        if (free > 4) return;
+        RT_CP_ACCT[String(free)] = a.id || '';
+        set('inp-coupang' + free + '-sales', a.매출); set('inp-coupang' + free + '-orders', a.판매량);
+      });
+      try { localStorage.setItem('rt_cp_acct', JSON.stringify(RT_CP_ACCT)); } catch (e) {}
+      if (typeof rtApplyCouponDefaults === 'function') rtApplyCouponDefaults();
+      return '쿠팡 ' + accs.map(a => (a.매출 || 0).toLocaleString()).join('+');
+    }
+    return '쿠팡❌' + (d.error || (blk ? '계정데이터없음' : ''));
+  }
+  if (kind === 'naversa') {   // 해트케는 rtMediumHattke(압력 필터). 그 외 = 캠페인명에 saKw 든 것
+    d = await rtJ(`${SUSERVER}/collect?medium=${enc('네이버SA광고비')}&account=${cfg.saAcct}&report=${cfg.saReport}&keyword=${enc(cfg.saKw || '')}&since=${s}&until=${u}`);
+    if (!d.error && d.burn3 != null) { set('inp-naversa', d.burn3); return '네이버SA ' + d.burn3.toLocaleString(); }
+    return '네이버SA❌' + (d.error || '');
+  }
+  if (kind === 'smartstore') {
+    if (!cfg.product) return '스토어—(미설정)';
+    const out = [];
+    d = await rtJ(`${SUSERVER}/collect?medium=${enc('실시간스토어매출')}&keyword=${enc(cfg.product)}&date=${date}`);
+    if (!d.error && d.sales != null) { set('inp-ss1-sales', d.sales); out.push('매출 ' + d.sales.toLocaleString()); } else out.push('매출△' + (d.error || ''));
+    d = await rtJ(`${SUSERVER}/collect?medium=${enc('실시간스토어주문')}&keyword=${enc(cfg.product)}&date=${date}`);
+    if (!d.error && d.orders != null) { set('inp-ss1-orders', d.orders); out.push('주문 ' + d.orders + '건'); } else out.push('주문△' + (d.error || ''));
+    return '스토어 ' + out.join('/');
+  }
+  return kind + '?';
+}
+
+const RT_KIND_LABEL = { google: '구글', tiktok: '틱톡', gfa: 'GFA', meta: '메타', cafe24: '카페24', coupang: '쿠팡', smartstore: '스마트스토어', naversa: '네이버SA', kakao: '카카오' };
+
+function rtBad(m) { return /❌|△|오류|시간초과|미설정|실패/.test(m); }
+
+// 전체수집에 끼워 넣는 '구글 소재 성과' 수집 — URL 설정된 브랜드만. render=true면 화면 표도 갱신.
+async function rtSoje(cfg, date, render) {
+  const url = ((cfg && cfg.sojeUrl) || '').trim();
+  if (!/campaignId=/.test(url)) return '구글소재—(URL없음)';
+  const prevTO = _rtTO; _rtTO = 430000;   // 구글 다운로드+카페24로 오래 걸림
+  let d;
+  try { d = await rtJ(`${SUSERVER}/collect?medium=${encodeURIComponent('구글소재')}&url=${encodeURIComponent(url)}&date=${date}`); }
+  catch (e) { d = { error: '서버연결실패' }; }
+  finally { _rtTO = prevTO; }
+  if (render) { try { renderSoje(d); } catch (e) {} }
+  if (!d || d.error) return '구글소재❌' + (d && d.error ? String(d.error).slice(0, 24) : '');
+  const s = d.summary || {};
+  return `구글소재 ${s.ads}개·ROAS${s.roas}%`;
+}
+
+// ──── 구글 소재 성과 수집 ────
+async function collectGoogleSoje(btn) {
+  const url = (document.getElementById('soje-url').value || '').trim();
+  if (!/campaignId=/.test(url)) {
+    rtToast('❌ Google Ads 광고페이지 URL을 붙여넣어 주세요 (campaignId 포함).', 6000); return;
+  }
+  const date = new Date().toISOString().slice(0, 10);   // 오늘(로컬)
+  if (btn) { btn.disabled = true; btn.dataset._t = btn.textContent; btn.textContent = '⏳ 수집 중…'; }
+  rtToast(`🎯 ${BRANDS[currentBrand].label} 구글 소재 수집 중…\n크롬이 뜹니다. 카페24 로그인/캡차가 뜨면 크롬 창에서 직접 풀어주세요.\n(구글 다운로드+카페24 조회로 1~3분 걸립니다)`, 0);
+  _rtTO = 430000;   // 이 수집은 오래 걸림(구글 다운로드+카페24)
+  let d;
+  try {
+    d = await rtJ(`${SUSERVER}/collect?medium=${encodeURIComponent('구글소재')}&url=${encodeURIComponent(url)}&date=${date}`);
+  } catch (e) {
+    d = { error: '서버 연결 실패 — 수집서버(포트 8765)가 켜져 있는지 확인하세요.' };
+  } finally {
+    _rtTO = 180000;
+    if (btn) { btn.disabled = false; btn.textContent = btn.dataset._t || '🎯 구글 소재 수집'; }
+  }
+  renderSoje(d);
+}
+
+function won(n) { return (n == null ? 0 : Math.round(n)).toLocaleString(); }
+function sjNum(s) { return Number(String(s).replace(/[^\d.-]/g, '')) || 0; }
+function sjSet(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
+
+let sojeState = null;   // 현재 화면의 소재 수집 결과(편집 시 갱신) — 이미지복사·재계산에 사용
+
+// 소재 수집결과를 브랜드별로 저장/복원(새로고침해도 표·이미지 유지)
+function sojeKey(brand) { return 'soje_last_' + (brand || currentBrand); }
+function saveSoje(d) { try { localStorage.setItem(sojeKey(), JSON.stringify(d)); } catch (e) {} }
+function restoreSoje() {
+  const box = document.getElementById('soje-result');
+  if (!box) return;
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem(sojeKey()) || 'null'); } catch (e) {}
+  if (d) renderSoje(d, true); else { box.innerHTML = ''; sojeState = null; }
+}
+
+// restoring=true : 새로고침/브랜드전환 후 저장본을 다시 그릴 때(이력저장·완료토스트 생략)
+function renderSoje(d, restoring) {
+  const box = document.getElementById('soje-result');
+  if (!d || d.error) {
+    if (restoring) { box.innerHTML = ''; return; }   // 저장된 실패결과는 복원하지 않음
+    box.innerHTML = `<div style="margin-top:8px;color:#dc2626;font-size:13px;font-weight:700">❌ ${d ? d.error : '수집 실패'}</div>`;
+    rtToast(`❌ 구글 소재 수집 실패: ${d ? d.error : ''}`, 9000);
+    return;
+  }
+  sojeState = d;
+  saveSoje(d);   // 새로고침 후에도 표가 남도록 브랜드별로 저장
+  const s = d.summary || {};
+
+  // 직전 수집(같은 날·같은 캠페인) 불러오기 — 값 감소 표시용
+  const histKey = 'soje_hist_' + currentBrand;
+  const dayKey = d.date + '__' + (d.campaignId || 'x');
+  let prevMap = {};
+  try {
+    const hist = JSON.parse(localStorage.getItem(histKey) || '{}');
+    const arr = hist[dayKey] || [];
+    if (arr.length) prevMap = arr[arr.length - 1].rows || {};
+  } catch (e) {}
+
+  const editTd = (f, i, val, down, prevVal) =>
+    `<td contenteditable="true" class="sj-edit" data-f="${f}" data-i="${i}" oninput="recalcSoje()"
+        style="${down ? 'background:#fee2e2;' : ''}" ${down ? `title="직전 ${won(prevVal)} → 현재 ${won(val)}"` : ''}>${won(val)}</td>`;
+
+  const rows = (d.rows || []).map((r, i) => {
+    const p = prevMap[r.name] || null;
+    const dCost = p && r.cost < p.cost, dSales = p && r.sales < p.sales, dOrders = p && r.orders < p.orders;
+    const anyDown = dCost || dSales || dOrders;
+    const hit = r.sales > 0;
+    return `<tr style="${hit ? 'background:#ecfdf5' : ''}">
+      <td style="text-align:left;${hit ? 'font-weight:700' : ''}" title="${(r.campaign || '').replace(/"/g, '')}">${anyDown ? '🔻 ' : ''}${r.name}${r.matched ? '' : ' <span style="color:#d97706">⚠미매칭</span>'}</td>
+      ${editTd('cost', i, r.cost, dCost, p && p.cost)}
+      ${editTd('sales', i, r.sales, dSales, p && p.sales)}
+      ${editTd('orders', i, r.orders || 0, dOrders, p && p.orders)}
+      <td id="sj-roas-${i}" style="${r.roas >= 100 ? 'color:#059669;font-weight:700' : ''}">${r.roas ? r.roas.toFixed(0) + '%' : '-'}</td>
+      <td id="sj-cpa-${i}">${r.cpa ? won(r.cpa) : '-'}</td></tr>`;
+  }).join('');
+
+  box.innerHTML = `
+    <div style="margin-top:10px">
+      <div class="action-row" style="margin:0 0 6px 0;flex-wrap:wrap;gap:6px">
+        <button class="btn btn-ghost" onclick="copySojeImage(this)">🖼 이미지 복사</button>
+        <span style="font-size:11px;color:var(--muted);align-self:center">셀 클릭해 값 수정 가능(ROAS·합계 자동 재계산) · 🔻=직전 수집보다 작아진 값</span>
+      </div>
+      <div id="soje-capture" style="background:#fff;color:#111827;padding:10px;border-radius:6px;overflow-x:auto">
+        <div style="font-size:12px;color:#374151;margin-bottom:4px">
+          ${d.adGroup ? '<b>' + d.adGroup + '</b> · ' : ''}${BRANDS[currentBrand].label} · ${d.date} ${d.generated ? '· 수집 ' + d.generated : ''}
+          ${d.costRange ? '· 구글비용 기준 <b>' + d.costRange[0] + '</b>' : ''}
+          · 매칭률 <b>${s.matchRate}%</b> · <span style="color:#6b7280">${d.note || ''}</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;text-align:right" class="soje-table">
+          <thead><tr style="border-bottom:2px solid #d1d5db">
+            <th style="text-align:left">광고이름</th><th>비용</th><th>카페24 매출</th><th>건수</th><th>실제 ROAS</th><th>실제 CPA</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot><tr style="border-top:2px solid #d1d5db;font-weight:700;background:#f9fafb">
+            <td style="text-align:left">합계 (광고 ${s.ads}개)</td>
+            <td id="sj-tot-cost">${won(s.cost)}</td><td id="sj-tot-sales" style="color:#059669">${won(s.sales)}</td><td id="sj-tot-orders">${s.orders}</td>
+            <td id="sj-tot-roas" style="${s.roas >= 100 ? 'color:#059669' : ''}">${s.roas ? s.roas.toFixed(0) + '%' : '-'}</td>
+            <td id="sj-tot-cpa">${s.cpa ? won(s.cpa) : '-'}</td></tr></tfoot>
+        </table>
+        <div style="font-size:11px;color:#6b7280;margin-top:4px">💾 구글 엑셀(실시간리포트_구글.xlsx)에 ${d.date} 누적 저장됨${d.excel_error ? ' <span style="color:#dc2626">— 저장오류: ' + d.excel_error + '</span>' : ''}</div>
+      </div>
+    </div>`;
+
+  if (restoring) return;   // 복원이면 여기까지(이력 재저장·완료토스트 생략)
+
+  // 이번 수집을 이력에 저장(다음 수집의 '직전' 비교 기준)
+  try {
+    const hist = JSON.parse(localStorage.getItem(histKey) || '{}');
+    const map = {};
+    (d.rows || []).forEach(r => { map[r.name] = { cost: r.cost, sales: r.sales, orders: r.orders }; });
+    const arr = hist[dayKey] || [];
+    arr.push({ time: d.generated || '', rows: map });
+    hist[dayKey] = arr.slice(-8);
+    // 오래된 날짜 정리(최근 10일치만)
+    const keys = Object.keys(hist).sort();
+    if (keys.length > 10) keys.slice(0, keys.length - 10).forEach(k => delete hist[k]);
+    localStorage.setItem(histKey, JSON.stringify(hist));
+  } catch (e) {}
+
+  rtToast(`✅ 구글 소재 수집 완료 — 광고 ${s.ads}개 · 비용 ${won(s.cost)} · 매출 ${won(s.sales)} · ROAS ${s.roas}% (매칭률 ${s.matchRate}%)`, 15000);
+}
+
+// 셀 수정 시 ROAS·CPA·합계 재계산
+function recalcSoje() {
+  if (!sojeState) return;
+  const n = (sojeState.rows || []).length;
+  let tc = 0, ts = 0, to = 0;
+  for (let i = 0; i < n; i++) {
+    const g = f => { const el = document.querySelector(`.sj-edit[data-f="${f}"][data-i="${i}"]`); return el ? sjNum(el.innerText) : 0; };
+    const cost = g('cost'), sales = g('sales'), orders = g('orders');
+    const roas = cost ? sales / cost * 100 : 0, cpa = orders ? Math.round(cost / orders) : 0;
+    Object.assign(sojeState.rows[i], { cost, sales, orders, roas: Math.round(roas * 10) / 10, cpa });
+    const rel = document.getElementById('sj-roas-' + i);
+    if (rel) { rel.textContent = roas ? roas.toFixed(0) + '%' : '-'; rel.style.color = roas >= 100 ? '#059669' : ''; rel.style.fontWeight = roas >= 100 ? '700' : ''; }
+    sjSet('sj-cpa-' + i, cpa ? won(cpa) : '-');
+    tc += cost; ts += sales; to += orders;
+  }
+  const troas = tc ? ts / tc * 100 : 0, tcpa = to ? Math.round(tc / to) : 0;
+  sjSet('sj-tot-cost', won(tc)); sjSet('sj-tot-sales', won(ts)); sjSet('sj-tot-orders', to);
+  sjSet('sj-tot-roas', troas ? troas.toFixed(0) + '%' : '-'); sjSet('sj-tot-cpa', tcpa ? won(tcpa) : '-');
+  Object.assign(sojeState.summary, { cost: tc, sales: ts, orders: to, roas: Math.round(troas * 10) / 10, cpa: tcpa });
+  saveSoje(sojeState);   // 수정한 값도 새로고침 후 유지
+}
+
+// 소재 표(수정 반영본)를 이미지로 클립보드 복사
+async function copySojeImage(btn) {
+  const el = document.getElementById('soje-capture');
+  if (!el) return;
+  const o = btn ? btn.textContent : ''; if (btn) { btn.disabled = true; btn.textContent = '⏳ 캡처 중…'; }
+  try {
+    const canvas = await html2canvas(el, { backgroundColor: '#ffffff', scale: 2 });
+    let copied = false;
+    try {
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      copied = true;
+    } catch (e) {   // 클립보드 이미지 미지원 브라우저 → PNG 다운로드로 폴백
+      const a = document.createElement('a');
+      a.download = `구글소재_${(sojeState && sojeState.date) || ''}.png`;
+      a.href = canvas.toDataURL('image/png'); a.click();
+    }
+    rtToast(copied ? '🖼 소재 표를 클립보드에 복사했어요. (Ctrl+V로 붙여넣기)' : '🖼 클립보드 미지원 → 이미지 파일로 저장했어요.', 6000);
+  } catch (e) {
+    rtToast('이미지 복사 실패: ' + (e.message || e), 6000);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = o || '🖼 이미지 복사'; }
+  }
+}
+
+async function collectOne(kind, btn) {     // 개별 수집
+  const cfg = RT_COLLECT[currentBrand];
+  const date = today(); document.getElementById('inp-date').value = date;
+  const lab = RT_KIND_LABEL[kind] || kind;
+  const o = btn.textContent; btn.disabled = true; btn.textContent = '…';
+  rtToast(`🔄 ${BRANDS[currentBrand].label} · ⏳${lab} 수집 중…\n(크롬이 떴다 닫힙니다. 카페24는 격자 캡차 뜨면 크롬 창에서 풀어주세요)`, 0);
+  _rtTO = RT_TIMEOUT[kind] || 180000;
+  let m; try { m = await rtMedium(kind, cfg, date); } catch (e) { m = lab + ' 오류'; }
+  btn.disabled = false; btn.textContent = o;
+  rtToast((rtBad(m) ? '⚠️ ' : '✅ ') + m + '  (확인 후 저장)', 10000);
+}
+
+async function collectToday(btn) {         // 전체 수집 (매체별 진행상황 표시)
+  const cfg = RT_COLLECT[currentBrand];
+  const date = today(); document.getElementById('inp-date').value = date;
+  const o = btn.textContent; btn.disabled = true; btn.textContent = '수집 중…';
+  const kinds = rtKinds(cfg);
+  const results = [];
+  const paint = (cur) => {
+    const line = kinds.map(([k, lab]) => {
+      const r = results.find(x => x.k === k);
+      if (r) return (r.ok ? '✅' : '❌') + lab;
+      return (k === cur) ? `⏳${lab}…` : `·${lab}`;
+    }).join('  ');
+    rtToast(`🔄 ${BRANDS[currentBrand].label} ${date} 수집 중\n${line}\n(카페24 격자 캡차는 크롬 창에서 직접 풀기)`, 0);
+  };
+  paint('google');
+  for (const [k, lab] of kinds) {
+    paint(k);
+    _rtTO = RT_TIMEOUT[k] || 180000;
+    let m; try { m = await rtMedium(k, cfg, date); } catch (e) { m = lab + ' 오류'; }
+    results.push({ k, lab, m, ok: !rtBad(m) });
+  }
+  // 매체 다 끝나면 구글 소재 성과도 함께 수집(URL 설정된 브랜드만 · 화면 표 갱신)
+  if (((cfg && cfg.sojeUrl) || '').trim()) {
+    rtToast(`🔄 ${BRANDS[currentBrand].label} ${date} — 매체 완료, 🎯 구글 소재 수집 중…(1~3분, 카페24 캡차 뜨면 크롬 창에서 풀기)`, 0);
+    const sm = await rtSoje(cfg, date, true);
+    results.push({ k: 'soje', lab: '구글소재', m: sm, ok: !rtBad(sm) });
+  }
+  btn.disabled = false; btn.textContent = o;
+  rtToast(`✅ ${BRANDS[currentBrand].label} ${date} 수집 완료\n` + results.map(r => r.m).join(' / ') + `\n\n값 확인 후 [저장]을 누르세요. (구글 소재는 별도 표·엑셀에 저장됨)`, 25000);
+}
+
+// 그래니살라 + 베이스튠 + 해트케 세 브랜드를 순서대로 자동 수집·저장 (공용 코어)
+// time: '12'|'16'|'0' → 반환 {date,time,timeLab,summary,brands:{키:{rec,text,result}}}
+async function collectBothCore(time, opts) {
+  const brands = ['graniesalad', 'basetune', 'hattke', 'salagris'];   // 해트케 = 압력이불만(rtMediumHattke) / 샐러그리스 = 광고비만
+  let date;
+  if (time === '0') {                        // 최종 = 어제 (시간버튼 규칙과 동일)
+    const y = new Date(); y.setDate(y.getDate() - 1);
+    date = `${y.getFullYear()}-${String(y.getMonth()+1).padStart(2,'0')}-${String(y.getDate()).padStart(2,'0')}`;
+  } else date = today();
+  const timeLab = time === '0' ? '최종' : time + '시';
+  // 시간대 버튼 활성화(saveRecord의 getSelectedTime()이 이 값을 읽음 + 보고 있는 사용자에게 표시)
+  document.querySelectorAll('.time-btn').forEach(b => b.classList.toggle('active', b.dataset.t === time));
+  const startBrand = currentBrand;
+  let kinds;
+  const summary = [], out = {};
+  for (let bi = 0; bi < brands.length; bi++) {
+    const brand = brands[bi];
+    applyBrand(brand);                        // 브랜드 전환(저장 대상 = 이 브랜드)
+    document.getElementById('inp-date').value = date;
+    const cfg = RT_COLLECT[brand];
+    kinds = rtKinds(cfg);
+    const results = [];
+    const paint = (cur) => {
+      const line = kinds.map(([k, lab]) => {
+        const rr = results.find(x => x.k === k);
+        if (rr) return (rr.ok ? '✅' : '❌') + lab;
+        return (k === cur) ? `⏳${lab}…` : `·${lab}`;
+      }).join('  ');
+      rtToast(`🔄 [${bi+1}/${brands.length}] ${BRANDS[brand].label} ${date} ${timeLab} 수집 중\n${line}\n(카페24 격자 캡차는 크롬 창에서 직접 풀기)`, 0);
+    };
+    paint('google');
+    for (const [k, lab] of kinds) {
+      paint(k);
+      _rtTO = RT_TIMEOUT[k] || 180000;
+      let mm; try { mm = await rtMedium(k, cfg, date); } catch (e) { mm = lab + ' 오류'; }
+      results.push({ k, lab, m: mm, ok: !rtBad(mm) });
+    }
+    // 구글 소재 성과도 함께(오늘 기준 슬롯만 · URL 설정된 브랜드만). '최종(어제)' 슬롯은 실시간성 없어 건너뜀.
+    // opts.skipSoje=true(무인 예약 경로)면 여기서 안 하고, 무인자동_실시간.py가 서버로 직접 수집한다
+    // (무인 브라우저 profile localStorage가 아닌 전역 엑셀에 남기기 위함 + 무인 안정성).
+    if (!(opts && opts.skipSoje) && time !== '0' && ((cfg && cfg.sojeUrl) || '').trim()) {
+      rtToast(`🔄 [${bi+1}/${brands.length}] ${BRANDS[brand].label} ${date} ${timeLab} — 🎯 구글 소재 수집 중…(1~3분)`, 0);
+      const sm = await rtSoje(cfg, date, true);
+      results.push({ k: 'soje', lab: '구글소재', m: sm, ok: !rtBad(sm) });
+    }
+    saveRecord({ silent: true });             // 자동 저장(덮어쓰기 확인 없이)
+    const rec = records.find(r => r.date === date && r.time === time) || null;
+    out[brand] = { rec, text: rec ? buildReportText(rec, brand).text : '', result: results.map(r => r.m).join(' / ') };
+    summary.push(`✅ ${BRANDS[brand].label} — ` + results.map(r => r.m).join(' / '));
+  }
+  applyBrand(startBrand);                      // 원래 보던 브랜드로 복귀
+  return { date, time, timeLab, summary, brands: out };
+}
+
+// [둘 다 수집] 버튼용 (선택한 시간대 기준)
+async function collectBoth(btn) {
+  const time = getSelectedTime();
+  const o = btn.textContent; btn.disabled = true; btn.textContent = '3브랜드 수집 중…';
+  const res = await collectBothCore(time);
+  btn.disabled = false; btn.textContent = o;
+  rtToast(`🎉 3브랜드 수집·저장 완료 (${res.date} ${res.timeLab})\n\n` + res.summary.join('\n\n') + `\n\n👉 표에서 색칠된 값(이상치)을 꼭 확인하세요.`, 35000);
+}
+
+// 자동수집 진입점 — 무인자동_실시간.py가 Playwright로 호출. slot='12'|'16'|'0'
+window.rtAutoCollect = async function (slot) {
+  try {
+    // skipSoje: 무인 경로에선 in-page 소재 수집을 끄고, 파이썬(무인자동_실시간.py)이 서버로 직접 수집한다.
+    const res = await collectBothCore(String(slot || '12'), { skipSoje: true });
+    return JSON.stringify({ ok: true, ...res });
+  } catch (e) {
+    return JSON.stringify({ ok: false, error: String((e && e.message) || e) });
+  }
+};
+
+// 자동수집(무인) 결과 스냅샷을 내 브라우저 표에 반영
+//  auto=true : 없는 기록만 추가(기존/내 수정값은 보존 — 페이지 열 때마다 안전하게 자동호출)
+//  auto=false: 같은 날짜·시간대면 자동수집값으로 덮어쓰기(버튼으로 명시 호출)
+async function importRtSnapshot(auto) {
+  let d;
+  try { d = await (await fetch(`${SUSERVER}/rt-snapshot`)).json(); }
+  catch (e) { if (!auto) rtToast('스냅샷 서버 연결 실패 (수집서버가 켜져 있나요?)', 6000); return; }
+  if (!d || d.error) { if (!auto) rtToast('불러올 자동수집 결과가 없습니다' + (d && d.error ? ' — ' + d.error : ''), 6000); return; }
+  const brandsObj = d.brands || {};
+  const to = t => t === '12' ? 1 : t === '16' ? 2 : 3;
+  let added = 0, updated = 0;
+  Object.keys(brandsObj).forEach(bk => {
+    if (!BRANDS[bk]) return;
+    const rec = brandsObj[bk] && brandsObj[bk].rec;
+    if (!rec) return;
+    const key = BRANDS[bk].key;
+    const arr = JSON.parse(localStorage.getItem(key) || '[]');
+    const i = arr.findIndex(x => x.date === rec.date && x.time === rec.time);
+    if (i >= 0) { if (!auto) { arr[i] = rec; updated++; } }   // auto면 기존 보존(내 수정 덮어쓰기 방지)
+    else { arr.push(rec); added++; }
+    arr.sort((a, b) => a.date !== b.date ? (a.date < b.date ? -1 : 1) : to(a.time) - to(b.time));
+    localStorage.setItem(key, JSON.stringify(arr));
+  });
+  if (added || updated) {
+    loadBrandData(); renderTable(); renderChart(); renderDow();
+    if (records.length) updateSummary(records[records.length - 1]);
+  }
+  // 무인 예약 수집한 '구글 캠페인(소재) 성과'를 브랜드별 표로 반영(무인자동_실시간.py가 스냅샷에 실음).
+  // 로컬에 더 최신(generated) 소재가 있으면 보존(사용자가 직접 수집한 값 안 덮어씀).
+  let sojeSet = 0;
+  const sojeObj = d.soje || {};
+  Object.keys(sojeObj).forEach(bk => {
+    const sd = sojeObj[bk];
+    if (!sd || sd.error || !(sd.rows && sd.rows.length)) return;
+    try {
+      const cur = JSON.parse(localStorage.getItem('soje_last_' + bk) || 'null');
+      if (cur && cur.generated && sd.generated && cur.generated > sd.generated) return;
+      localStorage.setItem('soje_last_' + bk, JSON.stringify(sd)); sojeSet++;
+    } catch (e) {}
+  });
+  if (sojeSet) { try { restoreSoje(); } catch (e) {} }   // 현재 보고 있는 브랜드의 소재표 다시 그림
+  if (!auto) rtToast(`자동수집 반영: 추가 ${added} / 갱신 ${updated}${sojeSet ? ' · 구글소재 ' + sojeSet + '건' : ''} (${d.date || ''} ${d.timeLab || ''})`, 7000);
+}
+
+function deleteRecord(id) {
+  if (!confirm('이 기록을 삭제하시겠습니까?')) return;
+  records = records.filter(r => r.id !== id);
+  saveStorage(); renderTable(); renderChart(); renderDow();
+}
+
+function clearAll() {
+  if (!confirm('모든 기록을 삭제하시겠습니까?')) return;
+  records = []; saveStorage(); renderTable(); renderChart(); renderDow();
+  resetSummary();
+}
+
+// ──── 필터 ────
+function getFilteredRecords() {
+  const from = document.getElementById('filter-from').value;
+  const to   = document.getElementById('filter-to').value;
+  return records.filter(r => {
+    if (from && r.date < from) return false;
+    if (to   && r.date > to)   return false;
+    return true;
+  });
+}
+
+function resetFilter() {
+  document.getElementById('filter-from').value = '';
+  document.getElementById('filter-to').value   = '';
+  renderTable(); renderChart();
+}
+
+function setTableTimeFilter(btn) {
+  tableTimeFilter = btn.dataset.tf;
+  document.querySelectorAll('.time-filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTable();
+}
+
+function switchDowMetric(metric, btn) {
+  dowMetric = metric;
+  document.querySelectorAll('#dow-metric-tabs .metric-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderDow();
+}
+
+function setDowPeriod(btn) {
+  dowPeriod = btn.dataset.period;
+  document.querySelectorAll('.dow-period-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderDow();
+}
+
+function getDowRecords() {
+  const base = records.filter(r => r.time === '0');
+  if (dowPeriod === 'all') return base;
+  const days = { '1w': 7, '2w': 14, '3w': 21, '1m': 30 }[dowPeriod];
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  return base.filter(r => r.date >= cutoffStr);
+}
+
+function switchTab(name, btn) {
+  document.querySelectorAll('.page-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'dow') renderDow();
+}
+
+// ──── 검수(이상치 자동표시) ────
+// ▼ 조정 가능한 설정값
+const VERIFY = {
+  BIG_DIFF_PCT: 50,                          // 전일 동시간대 대비 이 %를 넘게 변하면 주황 표시
+  FLOOR: { money: 50000, orders: 5 },        // 이보다 작은 값은 잡소리 방지로 변동표시 제외
+};
+// 각 기록의 표시값(누적 지표)을 한 곳에서 계산
+function rowValues(r) {
+  const m = calcMetrics(r);
+  return {
+    revenue: m.revenue, cafe24: m.cafe24Net, coupang: m.coupangNet, ss: m.ssNet,
+    adspend: m.adspend, meta: r.meta || 0, google: r.google || 0,
+    tiktok: r.tiktok || 0, gfa: r.gfa || 0, naversa: r.naversa || 0, kakao: r.kakao || 0, orders: m.orders,
+  };
+}
+const VERIFY_KEYS = ['revenue','cafe24','coupang','ss','adspend','meta','google','tiktok','gfa','naversa','kakao','orders'];
+const _vOrder = t => t === '12' ? 1 : t === '16' ? 2 : 3;   // 하루 안 시간 순서
+function _floorOf(k) { return k === 'orders' ? VERIFY.FLOOR.orders : VERIFY.FLOOR.money; }
+// 한 행의 이상 항목 계산 — 전체 records 기준(시간필터와 무관하게 비교)
+function rowFlags(r) {
+  const cur = rowValues(r);
+  const decrease = {}, bigdiff = {};
+  // 1) 같은 날짜의 바로 이전 시간대보다 줄었으면(누적인데 감소)
+  const earlier = records
+    .filter(x => x.date === r.date && _vOrder(x.time) < _vOrder(r.time))
+    .sort((a, b) => _vOrder(b.time) - _vOrder(a.time))[0];
+  if (earlier) {
+    const pv = rowValues(earlier);
+    const elab = earlier.time === '0' ? '최종' : earlier.time + '시';
+    VERIFY_KEYS.forEach(k => { if (cur[k] < pv[k] - 0.5) decrease[k] = { prev: pv[k], lab: elab }; });
+  }
+  // 2) 같은 시간대의 직전 날짜 대비 큰 변동
+  const prevDay = records
+    .filter(x => x.date < r.date && x.time === r.time)
+    .sort((a, b) => a.date < b.date ? 1 : -1)[0];
+  if (prevDay) {
+    const pv = rowValues(prevDay);
+    VERIFY_KEYS.forEach(k => {
+      if (decrease[k]) return;               // 감소표시가 우선
+      const p = pv[k], c = cur[k];
+      if (p > 0 && Math.max(c, p) >= _floorOf(k) &&
+          Math.abs(c - p) / p >= VERIFY.BIG_DIFF_PCT / 100) {
+        bigdiff[k] = { prev: p, date: prevDay.date };
+      }
+    });
+  }
+  return { decrease, bigdiff };
+}
+
+// ──── 테이블 ────
+function renderTable() {
+  const tbody   = document.getElementById('records-tbody');
+  const emptyEl = document.getElementById('empty-state');
+  const base    = getFilteredRecords();
+  const data    = tableTimeFilter === 'all' ? base : base.filter(r => r.time === tableTimeFilter);
+  if (data.length === 0) { tbody.innerHTML = ''; emptyEl.style.display = 'block'; return; }
+  emptyEl.style.display = 'none';
+
+  tbody.innerHTML = [...data].reverse().map(r => {
+    const m = calcMetrics(r);
+    const roasColor = m.roas >= 300 ? 'var(--green)' : m.roas >= 150 ? 'var(--yellow)' : 'var(--red)';
+    const timeLabel = r.time === '0' ? '최종' : r.time + '시';
+    const timeBadge = r.time === '0' ? 'final' : r.time;
+    const f = rowFlags(r);
+    const cell = (key, html) => {
+      const pvFmt = v => key === 'orders' ? v.toLocaleString() + '건' : fmtWon(v);
+      if (f.decrease[key]) { const d = f.decrease[key];
+        return `<td class="cell-drop" title="이전 시간대(${d.lab}) ${pvFmt(d.prev)}보다 감소 — 확인 필요">${html}</td>`; }
+      if (f.bigdiff[key])  { const d = f.bigdiff[key];
+        return `<td class="cell-diff" title="전일 동시간대(${d.date}) ${pvFmt(d.prev)} 대비 ±${VERIFY.BIG_DIFF_PCT}% 이상 변동 — 확인">${html}</td>`; }
+      return `<td>${html}</td>`;
+    };
+    return `<tr>
+      <td class="center">${r.date}</td>
+      <td class="center"><span class="badge-time badge-${timeBadge}">${timeLabel}</span></td>
+      ${cell('revenue', fmtWon(m.revenue))}
+      ${cell('cafe24',  fmtWon(m.cafe24Net))}
+      ${cell('coupang', fmtWon(m.coupangNet))}
+      ${cell('ss',      fmtWon(m.ssNet))}
+      ${cell('adspend', fmtWon(m.adspend))}
+      ${cell('meta',    fmtWon(r.meta || 0))}
+      ${cell('google',  fmtWon(r.google || 0))}
+      ${cell('tiktok',  fmtWon(r.tiktok || 0))}
+      ${cell('gfa',     fmtWon(r.gfa || 0))}
+      ${(RT_COLLECT[currentBrand] || {}).saAcct ? cell('naversa', fmtWon(r.naversa || 0)) : ''}
+      ${currentBrand === 'hattke' ? cell('kakao',   fmtWon(r.kakao   || 0)) : ''}
+      ${cell('orders',  m.orders.toLocaleString() + '건')}
+      <td style="color:${roasColor}; font-weight:700">${m.roas.toFixed(0)}%</td>
+      <td>${fmtWon(m.cpa)}</td>
+      <td>${fmtWon(m.aov)}</td>
+      <td>${m.selfRate.toFixed(1)}%</td>
+      <td class="memo-cell" title="${r.memo || ''}">${r.memo || ''}</td>
+      <td>
+        <button class="edit-btn" onclick="editRecord(${r.id})">✏</button>
+        <button class="del-btn" onclick="deleteRecord(${r.id})">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ──── 그래프 ────
+function switchMetric(metric, btn) {
+  currentMetric = metric;
+  document.querySelectorAll('.metric-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderChart();
+}
+
+function renderChart() {
+  if (chart) { chart.destroy(); chart = null; }
+
+  const todayD = new Date(); todayD.setHours(0,0,0,0);
+  const baseD  = new Date(todayD); baseD.setDate(baseD.getDate() - 6);
+  const baseDateStr = `${baseD.getFullYear()}-${String(baseD.getMonth()+1).padStart(2,'0')}-${String(baseD.getDate()).padStart(2,'0')}`;
+  const data = records.filter(r => r.date >= baseDateStr);
+
+  function toX(r) {
+    const d = new Date(r.date); d.setHours(0,0,0,0);
+    const dayOff = Math.round((d - baseD) / 86400000);
+    const frac = r.time === '12' ? 0.50 : r.time === '16' ? 0.667 : 0.99;
+    return dayOff + frac;
+  }
+
+  const tickDates = Array.from({length: 7}, (_, i) => {
+    const d = new Date(baseD); d.setDate(d.getDate() + i);
+    return { value: i, label: `${d.getMonth()+1}/${d.getDate()}` };
+  });
+
+  const metricCfg = {
+    roas:    { label: 'ROAS (%)', color: '#4f7fff', fn: r => calcMetrics(r).roas },
+    revenue: { label: '총매출',   color: '#22c55e', fn: r => calcMetrics(r).revenue },
+    adspend: { label: '광고비',   color: '#f59e0b', fn: r => calcMetrics(r).adspend },
+    cpa:     { label: 'CPA',      color: '#ef4444', fn: r => calcMetrics(r).cpa },
+    aov:     { label: '객단가',   color: '#a78bfa', fn: r => calcMetrics(r).aov },
+  };
+  const cfg = metricCfg[currentMetric];
+
+  const allPts   = data.map(r => ({ x: toX(r), y: cfg.fn(r), r }));
+  const finalPts = data.map(r => ({ x: toX(r), y: r.time === '0' ? cfg.fn(r) : null, r }));
+  const ptColors = data.map(r => r.time === '0' ? cfg.color : 'rgba(255,255,255,0.35)');
+  const ptSizes  = data.map(r => r.time === '0' ? 7 : 4);
+
+  const ctx = document.getElementById('trend-chart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      datasets: [
+        {
+          label: '실시간',
+          data: allPts,
+          borderColor: 'rgba(255,255,255,0.2)',
+          backgroundColor: 'transparent',
+          borderWidth: 1.5,
+          borderDash: [5, 5],
+          pointBackgroundColor: ptColors,
+          pointBorderColor: '#1a1d27',
+          pointBorderWidth: 1.5,
+          pointRadius: ptSizes,
+          pointHoverRadius: 8,
+          fill: false,
+          tension: 0.3,
+          order: 2,
+        },
+        {
+          label: cfg.label + ' (최종)',
+          data: finalPts,
+          borderColor: cfg.color,
+          backgroundColor: cfg.color + '18',
+          borderWidth: 2.5,
+          pointBackgroundColor: cfg.color,
+          pointBorderColor: '#1a1d27',
+          pointBorderWidth: 2,
+          pointRadius: 7,
+          pointHoverRadius: 9,
+          fill: true,
+          tension: 0.3,
+          spanGaps: true,
+          order: 1,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      interaction: { intersect: false, mode: 'nearest', axis: 'x' },
+      plugins: {
+        legend: { labels: { color: '#8892a4', font: { family: 'Pretendard', size: 12 } } },
+        tooltip: {
+          backgroundColor: '#1a1d27', borderColor: '#2e3348', borderWidth: 1,
+          titleColor: '#e2e8f0', bodyColor: '#8892a4', padding: 10,
+          filter: item => item.parsed.y !== null,
+          callbacks: {
+            title: items => {
+              if (!items.length) return '';
+              const r = items[0].raw?.r;
+              if (!r) return '';
+              const p = r.date.split('-');
+              const t = r.time === '0' ? '최종' : r.time + '시';
+              return `${p[1]}/${p[2]} ${t}`;
+            },
+            label: ctx => {
+              if (ctx.parsed.y === null) return null;
+              const v = ctx.parsed.y;
+              const r = ctx.raw?.r;
+              const memo = r?.memo ? `  📝 ${r.memo}` : '';
+              if (currentMetric === 'roas') return [`  ${ctx.dataset.label}: ${v.toFixed(0)}%`, memo].filter(Boolean);
+              return [`  ${ctx.dataset.label}: ${Math.round(v).toLocaleString()}원`, memo].filter(Boolean);
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          min: -0.05,
+          max: 6.99,
+          afterBuildTicks: scale => {
+            scale.ticks = tickDates.map(t => ({ value: t.value }));
+          },
+          ticks: {
+            color: '#8892a4',
+            font: { family: 'Pretendard', size: 11 },
+            callback: val => {
+              const t = tickDates.find(t => Math.abs(t.value - val) < 0.01);
+              return t ? t.label : '';
+            }
+          },
+          grid: { color: 'rgba(46,51,72,0.6)' }
+        },
+        y: {
+          grid: { color: 'rgba(46,51,72,0.6)' },
+          ticks: {
+            color: '#8892a4', font: { family: 'Pretendard', size: 11 },
+            callback: v => {
+              if (currentMetric === 'roas') return v.toFixed(0) + '%';
+              if (Math.abs(v) >= 100000000) return (v/100000000).toFixed(1) + '억';
+              if (Math.abs(v) >= 10000000)  return Math.round(v/10000) + '만';
+              if (Math.abs(v) >= 1000000)   return (v/10000).toFixed(0) + '만';
+              if (Math.abs(v) >= 10000)     return (v/10000).toFixed(1) + '만';
+              return Math.round(v).toLocaleString();
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// ──── 요일별 평균 ────
+function renderDow() {
+  const DOW_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+  const buckets   = Array.from({ length: 7 }, () => ({ revenue: 0, adspend: 0, roas: 0, cpa: 0, aov: 0, count: 0 }));
+
+  getDowRecords().forEach(r => {
+    const dow = new Date(r.date).getDay();
+    const m   = calcMetrics(r);
+    buckets[dow].revenue  += m.revenue;
+    buckets[dow].adspend  += m.adspend;
+    buckets[dow].roas     += m.roas;
+    buckets[dow].cpa      += m.cpa;
+    buckets[dow].aov      += m.aov;
+    buckets[dow].count    += 1;
+  });
+
+  const hasData = buckets.some(b => b.count > 0);
+  document.getElementById('dow-empty').style.display = hasData ? 'none' : 'block';
+
+  const mc = {
+    roas:    { label: 'ROAS',  fmtV: v => v.toFixed(0) + '%',  color: v => v >= 300 ? 'var(--green)' : v >= 150 ? 'var(--yellow)' : 'var(--red)', chartColor: null },
+    revenue: { label: '매출',  fmtV: v => fmt(v) + '원',       color: _ => 'var(--green)',  chartColor: '#22c55e' },
+    adspend: { label: '광고비', fmtV: v => fmt(v) + '원',      color: _ => 'var(--yellow)', chartColor: '#f59e0b' },
+    cpa:     { label: 'CPA',   fmtV: v => fmt(v) + '원',       color: _ => 'var(--red)',    chartColor: '#ef4444' },
+    aov:     { label: '객단가', fmtV: v => fmt(v) + '원',      color: _ => 'var(--purple)', chartColor: '#a78bfa' },
+  }[dowMetric];
+
+  const grid = document.getElementById('dow-grid');
+  grid.innerHTML = DOW_NAMES.map((name, i) => {
+    const b = buckets[i];
+    if (b.count === 0) return `<div class="dow-card">
+      <div class="dow-name">${name}요일</div>
+      <div class="dow-roas" style="color:var(--muted)">—</div>
+      <div class="dow-count">기록 없음</div>
+    </div>`;
+    const avg = b[dowMetric] / b.count;
+    const subLines = [
+      dowMetric !== 'revenue' ? `매출 ${fmt(b.revenue/b.count)}원` : '',
+      dowMetric !== 'adspend' ? `광고비 ${fmt(b.adspend/b.count)}원` : '',
+      dowMetric !== 'aov'     ? `객단가 ${fmt(b.aov/b.count)}원` : '',
+    ].filter(Boolean).join('<br>');
+    return `<div class="dow-card">
+      <div class="dow-name">${name}요일</div>
+      <div class="dow-roas" style="color:${mc.color(avg)}">${mc.fmtV(avg)}</div>
+      <div class="dow-sub">${subLines}</div>
+      <div class="dow-count">${b.count}건 평균</div>
+    </div>`;
+  }).join('');
+
+  if (dowChart) { dowChart.destroy(); dowChart = null; }
+  if (!hasData) return;
+
+  const avgValues = buckets.map(b => b.count > 0 ? b[dowMetric] / b.count : null);
+  const colors = dowMetric === 'roas'
+    ? avgValues.map(v => v == null ? '#2e3348' : v >= 300 ? '#22c55e' : v >= 150 ? '#f59e0b' : '#ef4444')
+    : avgValues.map(v => v == null ? '#2e3348' : mc.chartColor);
+
+  const ctx2 = document.getElementById('dow-chart').getContext('2d');
+  dowChart = new Chart(ctx2, {
+    type: 'bar',
+    data: {
+      labels: DOW_NAMES.map(n => n + '요일'),
+      datasets: [{
+        label: `평균 ${mc.label}`,
+        data: avgValues,
+        backgroundColor: colors.map(c => c + 'aa'),
+        borderColor: colors,
+        borderWidth: 1.5,
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { labels: { color: '#8892a4', font: { family: 'Pretendard', size: 12 } } },
+        tooltip: {
+          backgroundColor: '#1a1d27', borderColor: '#2e3348', borderWidth: 1,
+          titleColor: '#e2e8f0', bodyColor: '#8892a4',
+          callbacks: { label: ctx => `  평균 ${mc.label}: ${mc.fmtV(ctx.parsed.y)}` }
+        }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(46,51,72,0.6)' }, ticks: { color: '#8892a4', font: { family: 'Pretendard' } } },
+        y: { grid: { color: 'rgba(46,51,72,0.6)' }, ticks: { color: '#8892a4', font: { family: 'Pretendard' },
+          callback: v => dowMetric === 'roas' ? v.toFixed(0) + '%' : Math.round(v/10000) + '만' } }
+      }
+    }
+  });
+}
+
+// ──── 캡처 ────
+function captureReport() {
+  const brandLabel = BRANDS[currentBrand].label;
+  html2canvas(document.querySelector('.main'), { backgroundColor: '#0f1117', scale: 2 }).then(canvas => {
+    const a = document.createElement('a');
+    a.download = `${brandLabel}_리포트_${today()}.png`;
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  });
+}
+
+// ──── 내보내기 / 가져오기 (다른 계정·다른 PC와 같은 데이터 보기) ────
+// 이 앱의 저장소는 브라우저 localStorage라 계정·브라우저별로 갈린다(구조상 공유 불가).
+// 그래서 세 브랜드 기록 전부를 JSON 파일 하나로 주고받는다. 소재표(구글)·쿠팡 계정배정도 같이 담는다.
+const RT_EXPORT_VER = 1;
+function rtExport() {
+  const data = { app: 'realtime-report', ver: RT_EXPORT_VER, exportedAt: new Date().toISOString(), brands: {}, soje: {}, cpAcct: null };
+  Object.keys(BRANDS).forEach(bk => {
+    let rec = [];
+    try { rec = JSON.parse(localStorage.getItem(BRANDS[bk].key) || '[]'); } catch (e) {}
+    data.brands[bk] = rec;
+    try { const sj = localStorage.getItem('soje_last_' + bk); if (sj) data.soje[bk] = JSON.parse(sj); } catch (e) {}
+  });
+  try { data.cpAcct = JSON.parse(localStorage.getItem('rt_cp_acct') || 'null'); } catch (e) {}
+  const cnt = Object.keys(data.brands).map(k => `${BRANDS[k].label} ${data.brands[k].length}건`).join(' · ');
+  const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `실시간리포트_${today()}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  rtToast(`⬇ 내보내기 완료 — ${cnt}\n받은 사람은 같은 화면에서 [⬆ 가져오기]로 넣으면 됩니다.`, 9000);
+}
+
+function rtImport(input) {
+  const f = input.files && input.files[0];
+  input.value = '';                                  // 같은 파일 다시 고를 수 있게
+  if (!f) return;
+  const fr = new FileReader();
+  fr.onload = () => {
+    let d;
+    try { d = JSON.parse(fr.result); } catch (e) { rtToast('❌ JSON을 읽을 수 없습니다(파일이 깨졌거나 다른 형식).', 8000); return; }
+    if (!d || d.app !== 'realtime-report' || !d.brands) { rtToast('❌ 실시간 리포트 내보내기 파일이 아닙니다.', 8000); return; }
+    const known = Object.keys(d.brands).filter(bk => BRANDS[bk]);
+    if (!known.length) { riToastNone(); return; }
+    const when = (d.exportedAt || '').slice(0, 16).replace('T', ' ');
+    if (!confirm(`가져올까요? (${when} 내보낸 파일)\n\n` + known.map(bk => `${BRANDS[bk].label} ${d.brands[bk].length}건`).join('\n')
+                 + `\n\n같은 날짜·같은 시간대는 파일 값으로 덮어씁니다.`)) return;
+    const sum = [];
+    known.forEach(bk => {
+      let mine = [];
+      try { mine = JSON.parse(localStorage.getItem(BRANDS[bk].key) || '[]'); } catch (e) {}
+      const idx = new Map(mine.map((r, i) => [r.date + '__' + r.time, i]));
+      let add = 0, over = 0;
+      (d.brands[bk] || []).forEach(r => {
+        if (!r || !r.date || r.time == null) return;
+        const k = r.date + '__' + r.time;
+        if (idx.has(k)) { mine[idx.get(k)] = r; over++; }
+        else { idx.set(k, mine.length); mine.push(r); add++; }
+      });
+      mine.sort((x, y) => (x.date + x.time).localeCompare(y.date + y.time));
+      localStorage.setItem(BRANDS[bk].key, JSON.stringify(mine));
+      sum.push(`${BRANDS[bk].label} +${add}건 / 덮어씀 ${over}건`);
+      if (d.soje && d.soje[bk]) { try { localStorage.setItem('soje_last_' + bk, JSON.stringify(d.soje[bk])); } catch (e) {} }
+    });
+    if (d.cpAcct) { try { localStorage.setItem('rt_cp_acct', JSON.stringify(d.cpAcct)); } catch (e) {} }
+    applyBrand(currentBrand);                        // 표·차트·소재표 다시 그림
+    rtToast('⬆ 가져오기 완료\n' + sum.join('\n'), 12000);
+  };
+  fr.readAsText(f);
+}
+function riToastNone() { rtToast('❌ 이 파일에 아는 브랜드 기록이 없습니다.', 8000); }
+
+// ──── 리포트 텍스트 생성 (잔디/슬랙 공용) ────
+// 특정 레코드 r + 브랜드키 → {dateStr, text}. copyToSheet·자동수집·슬랙이 모두 이 함수 하나를 씀(포맷 일원화)
+function buildReportText(r, brandKey) {
+  const DOW = ['일', '월', '화', '수', '목', '금', '토'];
+  const n = v => Math.round(v).toLocaleString();
+  const m  = calcMetrics(r);
+  const d  = new Date(r.date);
+  const yy = String(d.getFullYear()).slice(2);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const dow = DOW[d.getDay()];
+  const timeLabel = r.time === '0' ? '최종' : `${r.time}:00`;
+  const dateStr   = `${yy}/${mm}/${dd} (${dow}) ${timeLabel}`;
+
+  const brandLabel = BRANDS[brandKey].label;
+  const selfPct    = m.selfRate.toFixed(1);
+  const otherPct   = (100 - m.selfRate).toFixed(1);
+  const memoLine   = r.memo ? `\n📝 ${r.memo}` : '';
+
+  const coupangOrders = (r.coupang1Orders || 0) + (r.coupang2Orders || 0) + (r.coupang3Orders || 0) + (r.coupang4Orders || 0);
+  const ssOrders      = (r.ss1Orders || 0) + (r.ss2Orders || 0) + (r.ss3Orders || 0);
+
+  if (brandKey === 'hattke') {   // 해트케는 압력이불만 따로 본다(사용자 양식 2026-09-22)
+    const text = [
+      `[해트케 압력이불 성과] ${dateStr}`,
+      '',
+      `•    광고비 ${n(m.adspend)}`,
+      `    ◦    틱톡 ${n(r.tiktok || 0)}`,
+      `    ◦    구글 ${n(r.google || 0)}`,
+      `    ◦    메타 ${n(r.meta || 0)}`,
+      `    ◦    네이버SA ${n(r.naversa || 0)}`,
+      `    ◦    GFA ${n(r.gfa || 0)}`,
+      `    ◦    카카오 ${n(r.kakao || 0)}`,
+      ...m.customAds.items.map(it => `    ◦    ${it.name} ${n(it.cost)}`),
+      `•    매출 ${n(m.revenue)} / ${m.orders}`,
+      `    ◦    자사몰 ${n(m.cafe24Net)} / ${r.cafe24Orders || 0}`,
+      `    ◦    쿠팡 ${n(m.coupangNet)} / ${coupangOrders}`,
+      `    ◦    네이버 ${n(m.ssNet)} / ${ssOrders}`,
+      ...m.customSales.items.map(it => `    ◦    ${it.name} ${n(it.net)} / ${it.orders}`),
+      `•    ROAS ${m.roas.toFixed(0)}% / CPA ${n(m.cpa)}`,
+      `•    객단가 ${n(m.aov)}`,
+      `•    결제 비율 (자사몰 ${selfPct}% / 외 ${otherPct}%)`,
+    ].join('\n') + memoLine;
+    return { dateStr, text };
+  }
+
+  const text = [
+    `[${brandLabel}] ${dateStr}`,
+    '',
+    `•    광고비 ${n(m.adspend)}`,
+    `    ◦    메타 ${n(r.meta || 0)}`,
+    `    ◦    구글 ${n(r.google || 0)}`,
+    `    ◦    틱톡 ${n(r.tiktok || 0)}`,
+    `    ◦    GFA ${n(r.gfa || 0)}`,
+    ...m.customAds.items.map(it => `    ◦    ${it.name} ${n(it.cost)}`),
+    '',
+    `•    매출 ${n(m.revenue)} / ${m.orders}`,
+    `    ◦    자사몰 ${n(m.cafe24Net)} / ${r.cafe24Orders || 0}`,
+    `    ◦    쿠팡 ${n(m.coupangNet)} / ${coupangOrders}`,
+    `    ◦    스마트스토어 ${n(m.ssNet)} / ${ssOrders}`,
+    ...m.customSales.items.map(it => `    ◦    ${it.name} ${n(it.net)} / ${it.orders}`),
+    '',
+    `•    ROAS ${m.roas.toFixed(0)}% / CPA ${n(m.cpa)}`,
+    `•    객단가 ${n(m.aov)}`,
+    `•    결제 비율 (자사몰 ${selfPct}% / 외 ${otherPct}%)`,
+  ].join('\n') + memoLine;
+  return { dateStr, text };
+}
+
+// ──── 슬랙 전송 (현재 브랜드 최신 기록) ────
+// 웹훅 URL은 HTML이 아니라 수집서버(slack_config.json)에 보관 → 서버 /slack 경유 전송
+async function sendToSlack() {
+  if (records.length === 0) { rtToast('저장된 데이터가 없습니다.', 5000); return; }
+  const r = records[records.length - 1];
+  const { dateStr, text } = buildReportText(r, currentBrand);
+  if (!confirm(`슬랙으로 전송할까요?\n\n[${BRANDS[currentBrand].label}] ${dateStr}\n\n(전송 전 표의 색칠된 값 확인!)`)) return;
+  rtToast('📤 슬랙 전송 중…', 0);
+  let d;
+  try { d = await (await fetch(`${SUSERVER}/slack?text=${encodeURIComponent(text)}`)).json(); }
+  catch (e) { rtToast('❌ 전송 실패: 수집서버 연결 안됨(서버가 켜져 있나요?)', 8000); return; }
+  if (d && d.ok) rtToast(`✅ 슬랙 전송 완료 — ${BRANDS[currentBrand].label} ${dateStr}`, 6000);
+  else rtToast('❌ ' + ((d && d.error) || '전송 실패'), 9000);
+}
+
+// ──── 스프레드시트 복사 ────
+function copyToSheet() {
+  if (records.length === 0) { alert('저장된 데이터가 없습니다.'); return; }
+  const r = records[records.length - 1];
+  const { dateStr, text } = buildReportText(r, currentBrand);
+  navigator.clipboard.writeText(text)
+    .then(() => alert(`${dateStr} 데이터가 복사되었습니다.`))
+    .catch(() => alert('복사 실패. 브라우저 권한을 확인해주세요.'));
+}
+
+// ──── 기록 수정 ────
+function editRecord(id) {
+  const r = records.find(rec => rec.id === id);
+  if (!r) return;
+
+  document.getElementById('inp-date').value = r.date;
+  document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.time-btn[data-t="${r.time}"]`).classList.add('active');
+
+  document.getElementById('inp-cafe24-sales').value    = r.cafe24Sales   || '';
+  document.getElementById('inp-cafe24-orders').value   = r.cafe24Orders  || '';
+  document.getElementById('inp-cafe24-refund').value   = r.cafe24Refund  || '';
+  document.getElementById('inp-coupang1-sales').value  = r.coupang1Sales  || '';
+  document.getElementById('inp-coupang1-orders').value = r.coupang1Orders || '';
+  document.getElementById('inp-coupang1-coupon').value = r.coupang1Coupon || '';
+  document.getElementById('inp-coupang1-refund').value = r.coupang1Refund || '';
+  document.getElementById('inp-coupang2-sales').value  = r.coupang2Sales  || '';
+  document.getElementById('inp-coupang2-orders').value = r.coupang2Orders || '';
+  document.getElementById('inp-coupang2-refund').value = r.coupang2Refund || '';
+  document.getElementById('inp-coupang2-coupon').value = r.coupang2Coupon || '';
+  document.getElementById('inp-coupang3-sales').value  = r.coupang3Sales  || '';
+  document.getElementById('inp-coupang3-orders').value = r.coupang3Orders || '';
+  document.getElementById('inp-coupang3-refund').value = r.coupang3Refund || '';
+  document.getElementById('inp-coupang3-coupon').value = r.coupang3Coupon || '';
+  document.getElementById('inp-coupang4-sales').value  = r.coupang4Sales  || '';
+  document.getElementById('inp-coupang4-orders').value = r.coupang4Orders || '';
+  document.getElementById('inp-coupang4-refund').value = r.coupang4Refund || '';
+  document.getElementById('inp-coupang4-coupon').value = r.coupang4Coupon || '';
+  if (typeof rtApplyCouponDefaults === 'function') rtApplyCouponDefaults();
+  document.getElementById('inp-ss1-sales').value       = r.ss1Sales   || '';
+  document.getElementById('inp-ss1-orders').value      = r.ss1Orders  || '';
+  document.getElementById('inp-ss1-refund').value      = r.ss1Refund  || '';
+  document.getElementById('inp-ss2-sales').value       = r.ss2Sales   || '';
+  document.getElementById('inp-ss2-orders').value      = r.ss2Orders  || '';
+  document.getElementById('inp-ss2-refund').value      = r.ss2Refund  || '';
+  document.getElementById('inp-ss3-sales').value       = r.ss3Sales   || '';
+  document.getElementById('inp-ss3-orders').value      = r.ss3Orders  || '';
+  document.getElementById('inp-ss3-refund').value      = r.ss3Refund  || '';
+  document.getElementById('inp-meta').value            = r.meta   || '';
+  document.getElementById('inp-google').value          = r.google || '';
+  document.getElementById('inp-tiktok').value          = r.tiktok || '';
+  document.getElementById('inp-gfa').value             = r.gfa    || '';
+  document.getElementById('inp-naversa').value         = r.naversa || '';
+  document.getElementById('inp-kakao').value            = r.kakao   || '';
+  rtCustomFill(r);
+  document.getElementById('inp-memo').value            = r.memo   || '';
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ──── 화살표 키 입력 이동 ────
+(function() {
+  const COL = {
+    'inp-cafe24-sales':    'sales',  'inp-coupang1-sales':  'sales',  'inp-coupang2-sales':  'sales',
+    'inp-coupang3-sales':  'sales',  'inp-ss1-sales':       'sales',  'inp-ss2-sales':       'sales',  'inp-ss3-sales':  'sales',
+    'inp-cafe24-orders':   'orders', 'inp-coupang1-orders': 'orders', 'inp-coupang2-orders': 'orders',
+    'inp-coupang3-orders': 'orders', 'inp-ss1-orders':      'orders', 'inp-ss2-orders':      'orders', 'inp-ss3-orders': 'orders',
+    'inp-cafe24-refund':   'refund', 'inp-coupang1-refund': 'refund', 'inp-coupang2-refund': 'refund',
+    'inp-coupang3-refund': 'refund', 'inp-ss1-refund':      'refund', 'inp-ss2-refund':      'refund', 'inp-ss3-refund': 'refund',
+  };
+
+  document.querySelector('.input-card').addEventListener('keydown', function(e) {
+    const el = document.activeElement;
+    if (!el || el.type === 'date') return;
+
+    const allNums = Array.from(document.querySelectorAll('.input-card input[type=number]'));
+    const seqIdx  = allNums.indexOf(el);
+
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      if (el.type !== 'number') return;
+      e.preventDefault();
+      const next = e.key === 'ArrowRight' ? seqIdx + 1 : seqIdx - 1;
+      if (next >= 0 && next < allNums.length) allNums[next].focus();
+      return;
+    }
+
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      if (el.type === 'number') e.preventDefault();
+      const colGroup = COL[el.id];
+      if (!colGroup) return;
+      const sameCol = allNums.filter(inp => COL[inp.id] === colGroup);
+      const colIdx  = sameCol.indexOf(el);
+      if (colIdx === -1) return;
+      e.preventDefault();
+      const next = e.key === 'ArrowDown' ? colIdx + 1 : colIdx - 1;
+      if (next >= 0 && next < sameCol.length) sameCol[next].focus();
+    }
+  });
+})();
+
+// ──── 초기화 ────
+// 새로고침해도 마지막에 보던 브랜드로 복귀(그 브랜드의 표·구글 소재 결과가 그대로 보이도록)
+let startBrand = 'graniesalad';
+try { const b = localStorage.getItem('rt_last_brand'); if (b && BRANDS[b]) startBrand = b; } catch (e) {}
+applyBrand(startBrand);   // 브랜드 하이라이트·데이터·표·차트·소재표 복원까지 한 번에
+
+// 페이지 열 때 자동수집(무인) 결과 자동 반영 — 없는 기록만 추가(내 수정값은 절대 안 건드림)
+importRtSnapshot(true);
+rtSyncRecent(14);   // 교차검증용 — 최근 2주 기록을 서버 파일로(하루 1번)
+</script>
+<script src="공유저장.js"></script>
+</body>
+</html>
