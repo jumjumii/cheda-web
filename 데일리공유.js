@@ -314,3 +314,27 @@ async function dlRtCheck() {
     } catch (e) {}
   }, 3000);
 })();
+
+// ── ☁ PC가 꺼져 있을 때: 수집 버튼(127.0.0.1:8765/collect)이 실패하면 팀 시트 'col' 행(클라우드·수집 PC가 올린 값)으로 대신 답한다 (2026-10-26)
+//   행: brand=<브랜드|'-'>, date=until, kind='col', media='<매체>|<since>|<until>#조각'. 로컬 서버가 살아 있으면 그대로(동작 변화 없음).
+(function () {
+  const _fetch = window.fetch.bind(window), NOBRAND = ['네이버', '스마트스토어', '올리브영', '크리테오'];
+  window.fetch = async function (input, init) {
+    const url = typeof input === 'string' ? input : (input && input.url) || '';
+    if (!url.startsWith('http://127.0.0.1:8765/collect')) return _fetch(input, init);
+    try { return await _fetch(input, init); }
+    catch (e) {
+      const q = new URL(url).searchParams, medium = (q.get('medium') || '쿠팡').normalize('NFC');
+      const date = q.get('date') || dlYmd(new Date(Date.now() - 864e5));
+      const since = q.get('since') || date, until = q.get('until') || date;
+      const brand = NOBRAND.includes(medium) ? '-' : (q.get('brand') || 'granny'), base = medium + '|' + since + '|' + until;
+      let v = null;
+      try {
+        const rows = (await dbCall({ action: 'get', brand, from: until, to: until })).rows.filter(r => r.kind === 'col' && String(r.media).startsWith(base + '#'));
+        v = (dlJoin(rows).find(r => r.base === base) || {}).value || null;
+      } catch (x) {}
+      const body = v || { error: '수집 서버(PC)가 꺼져 있고, 클라우드 수집값도 없습니다(' + medium + ' ' + since + (since !== until ? '~' + until : '') + '). PC에서 수집하거나 단일 날짜로 다시 시도하세요.' };
+      return new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } });
+    }
+  };
+})();
