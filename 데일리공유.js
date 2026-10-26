@@ -286,3 +286,31 @@ async function dlRtCheck() {
   setInterval(() => { dlEditor(); dlRtCheck(); }, 4000); dlEditor(); setTimeout(dlRtCheck, 1500);
   setInterval(async () => { if (await dlPull(true)) try { renderDateTabs(); } catch (e) {} }, 5 * 60 * 1000);
 })();
+
+
+// ── (2026-10-26) 실시간 가구매 → 데일리 표시 · BS 스케줄 팀 공유 ── (끝에 붙인 독립 코드)
+(function () {
+  const BS_KEY = /^(gs|ht|bt)_rd_bs_schedule$/;
+  const _set = Storage.prototype.setItem;
+  Storage.prototype.setItem = function (k, v) {     // BS 월 비용 스케줄 저장 → 시트(설정/2000-01-04/bs)
+    _set.call(this, k, v);
+    if (this === localStorage && BS_KEY.test(k)) dbCall({ action: 'put', by: dlWho(), rows: [{ brand: '설정', date: '2000-01-04', kind: 'bs', media: k, value: JSON.parse(v) }] }).catch(() => {});
+  };
+  setTimeout(async () => {
+    if (!RTDB.url) return;
+    try {   // BS 스케줄: 시트 값이 있으면 이 브라우저에 반영
+      const rows = (await dbCall({ action: 'get', brand: '설정', from: '2000-01-04', to: '2000-01-04' })).rows.filter(r => r.kind === 'bs' && r.value);
+      rows.forEach(r => { if (localStorage.getItem(r.media) !== JSON.stringify(r.value)) _set.call(localStorage, r.media, JSON.stringify(r.value)); });
+      const mine = Object.keys(localStorage).filter(k => BS_KEY.test(k) && !rows.some(r => r.media === k));
+      if (mine.length) dbCall({ action: 'put', by: dlWho(), rows: mine.map(k => ({ brand: '설정', date: '2000-01-04', kind: 'bs', media: k, value: JSON.parse(localStorage.getItem(k)) })) }).catch(() => {});
+      if (typeof renderBsSchedule === 'function') renderBsSchedule();
+    } catch (e) {}
+    try {   // 최근 40일 실시간 기록 중 가구매 있는 것 → 데일리 가구매 칸 위 알림
+      const from = dlYmd(new Date(Date.now() - 40 * 864e5));
+      const rs = (await dbCall({ action: 'get', from, to: '2999-12-31' })).rows.filter(r => /^rt(12|16|0)$/.test(r.kind) && r.value && (r.value.fakeBuys || []).length);
+      const m = {}; rs.forEach(r => (m[r.brand] ||= []).push(r.value));
+      window.DL_RT_FAKE = m;
+      if (typeof ggRtBanner === 'function') ggRtBanner();
+    } catch (e) {}
+  }, 3000);
+})();

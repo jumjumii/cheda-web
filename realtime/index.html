@@ -470,6 +470,15 @@ td.cell-diff { background: rgba(245,158,11,0.16); color: #fcd34d !important; fon
     </div>
 
     <div class="input-block">
+      <span class="block-label">🚫 가구매 (체험단 등 우리가 산 것 — 매출·주문에서 뺌)</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <select id="rt-gg-plat" style="padding:5px 7px;border:1px solid #cdd6e6;border-radius:6px;font-size:12px"><option value="coupang">쿠팡</option><option value="ss">스마트스토어</option></select>
+        <input type="text" id="rt-gg-prod" placeholder="제품(선택)" style="width:110px;padding:5px 7px;border:1px solid #cdd6e6;border-radius:6px;font-size:12px">
+        <input type="text" id="rt-gg-qty" inputmode="numeric" placeholder="수량" style="width:70px;padding:5px 7px;border:1px solid #cdd6e6;border-radius:6px;font-size:12px">
+        <input type="text" id="rt-gg-amt" inputmode="numeric" placeholder="금액(모르면 비움)" style="width:130px;padding:5px 7px;border:1px solid #cdd6e6;border-radius:6px;font-size:12px">
+        <button type="button" onclick="rtGgAdd()" style="padding:6px 12px;background:#111;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px">+ 추가</button>
+      </div>
+      <div id="rt-gg-list" style="margin:6px 0 10px;font-size:12px"></div>
       <span class="block-label">메모</span>
       <div class="input-group">
         <label>메모 (선택)</label>
@@ -1033,6 +1042,27 @@ function rtCustomFill(r) {
 }
 
 // ──── 지표 계산 ────
+// 🚫 가구매(2026-10-26): 기록마다 fakeBuys=[{plat:'coupang'|'ss', prod, qty, amt}] → 그 채널 매출·주문에서 뺀다(데일리 '가구매 제외'와 같은 기준)
+let rtFake = [];
+const RT_GG_KOR = { coupang: '쿠팡', ss: '스마트스토어' };
+function rtGgRender() {
+  const el = document.getElementById('rt-gg-list'); if (!el) return;
+  el.innerHTML = rtFake.map((g, i) => `<span style="display:inline-block;margin:2px 6px 2px 0;padding:3px 8px;border:1px solid #fdba74;background:#fff7ed;border-radius:6px">${RT_GG_KOR[g.plat]}${g.prod ? ' ' + g.prod : ''} ${g.qty}개${g.amt != null ? ' · ' + g.amt.toLocaleString() + '원' : ' · 금액 미차감'} <b onclick="rtGgDel(${i})" style="cursor:pointer;color:#dc2626">✕</b></span>`).join('');
+}
+function rtGgAdd() {
+  const v = id => String(document.getElementById(id).value || '').replace(/[^\d.-]/g, '');
+  const qty = parseFloat(v('rt-gg-qty')) || 0; if (!qty) { alert('수량을 넣어 주세요.'); return; }
+  const a = v('rt-gg-amt');
+  rtFake.push({ plat: document.getElementById('rt-gg-plat').value, prod: document.getElementById('rt-gg-prod').value.trim(), qty, amt: a === '' ? null : parseFloat(a) });
+  ['rt-gg-qty', 'rt-gg-amt', 'rt-gg-prod'].forEach(id => document.getElementById(id).value = '');
+  rtGgRender();
+}
+function rtGgDel(i) { rtFake.splice(i, 1); rtGgRender(); }
+function rtFakeSum(r, plat) {
+  const a = (r.fakeBuys || []).filter(g => g.plat === plat);
+  return { amt: a.reduce((s, g) => s + (g.amt || 0), 0), qty: a.reduce((s, g) => s + (g.qty || 0), 0) };
+}
+
 function calcMetrics(r) {
   const cafe24Net   = (r.cafe24Sales   || 0) - (r.cafe24Refund   || 0);
   const coupang1Net = (r.coupang1Sales || 0) - (r.coupang1Refund || 0) - rtCouponMinus(r, 1);
@@ -1042,8 +1072,9 @@ function calcMetrics(r) {
   const ss1Net      = (r.ss1Sales      || 0) - (r.ss1Refund      || 0);
   const ss2Net      = (r.ss2Sales      || 0) - (r.ss2Refund      || 0);
   const ss3Net      = (r.ss3Sales      || 0) - (r.ss3Refund      || 0);
-  const coupangNet  = coupang1Net + coupang2Net + coupang3Net + coupang4Net;
-  const ssNet       = ss1Net + ss2Net + ss3Net;
+  const fcp = rtFakeSum(r, 'coupang'), fss = rtFakeSum(r, 'ss');   // 🚫 가구매 차감
+  const coupangNet  = coupang1Net + coupang2Net + coupang3Net + coupang4Net - fcp.amt;
+  const ssNet       = ss1Net + ss2Net + ss3Net - fss.amt;
   const cus         = rtCustomSalesOf(r);          // 직접 추가한 매출처(매출−환불, 주문건수)
   const cad         = rtCustomAdsOf(r);            // 직접 추가한 광고비
   const revenue     = cafe24Net + coupangNet + ssNet + cus.net;
@@ -1051,7 +1082,7 @@ function calcMetrics(r) {
   const orders      = (r.cafe24Orders   || 0)
                     + (r.coupang1Orders || 0) + (r.coupang2Orders || 0) + (r.coupang3Orders || 0) + (r.coupang4Orders || 0)
                     + (r.ss1Orders      || 0) + (r.ss2Orders      || 0) + (r.ss3Orders      || 0)
-                    + cus.orders;
+                    + cus.orders - fcp.qty - fss.qty;
   const roas     = adspend > 0 ? revenue / adspend * 100 : 0;
   const cpa      = orders  > 0 ? adspend / orders : 0;
   const aov      = orders  > 0 ? revenue / orders : 0;
@@ -1164,6 +1195,8 @@ function saveRecord(opts) {
     kakao:   num('inp-kakao'),
     ...rtCustomValues(),                    // 직접 추가한 매출처·광고비 (cs_*/ca_*, customNames)
     memo: document.getElementById('inp-memo').value.trim(),
+    fakeBuys: (opts && opts.silent && !rtFake.length)   // 🚫 가구매 — 자동수집 덮어쓰기 때는 기존 가구매 유지
+      ? ((records.find(x => x.date === date && x.time === time) || {}).fakeBuys || []) : rtFake.slice(),
   };
 
   const idx = records.findIndex(r => r.date === date && r.time === time);
@@ -1219,6 +1252,7 @@ function clearInputs() {
   ].forEach(id => document.getElementById(id).value = '');
   document.querySelectorAll('[id^="inp-cs-"],[id^="inp-ca-"]').forEach(el => { el.value = ''; });
   document.getElementById('inp-memo').value = '';
+  rtFake = []; rtGgRender();
 }
 
 function saveStorage() { localStorage.setItem(getStoreKey(), JSON.stringify(records)); }
@@ -2421,6 +2455,7 @@ function editRecord(id) {
   document.getElementById('inp-kakao').value            = r.kakao   || '';
   rtCustomFill(r);
   document.getElementById('inp-memo').value            = r.memo   || '';
+  rtFake = (r.fakeBuys || []).slice(); rtGgRender();
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }

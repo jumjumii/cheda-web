@@ -418,6 +418,7 @@ tr.r-oy{background:#fdf4ff}
     <input type="text" id="gg-amt" inputmode="numeric" placeholder="금액(모르면 비움)" style="width:140px;padding:5px 7px;border:1px solid #cdd6e6;border-radius:6px;font-size:12px">
     <button onclick="ggAddManual()" style="padding:6px 12px;background:#111;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px">+ 추가</button>
   </div>
+  <div id="gg-rt-banner"></div>
   <div id="gagumae-list" style="margin-top:9px"></div>
 </div>
 
@@ -935,6 +936,7 @@ function onDateRangeChange(){
   const cur=new Date(f+'T00:00:00'), end=new Date(t+'T00:00:00');
   while(cur<=end){ dates.push(_lfmt(cur)); cur.setDate(cur.getDate()+1); }
   if(!dates.length||dates.length>31) return;
+  if(typeof ggRtBanner==='function') ggRtBanner();
 
   // ★저장된 값이 있는 날짜면 빈 행이 아니라 그 저장값을 불러온다 (2026-07-20 요청).
   //   현재 입력 중인 내용이 있으면 한 번 확인.
@@ -4635,6 +4637,7 @@ function ggSyncControls(){
 }
 
 function ggRender(){
+  ggRtBanner();
   ggSyncControls();
   const box=document.getElementById('gagumae-list'); if(!box) return;
   const list=state.gagumae||[];
@@ -4654,6 +4657,17 @@ function ggRender(){
   }).join('');
 }
 
+// 🚫 실시간 리포트에 가구매가 적힌 날짜면 여기서 알림(2026-10-26). 실시간 기록: localStorage(이 브라우저) + window.DL_RT_FAKE(웹: 시트에서)
+const GG_RT_KEY = { granny:'graniesalad', hattke:'hattke', basetune:'basetune' };
+function ggRtBanner(){
+  const el=document.getElementById('gg-rt-banner'); if(!el) return;
+  const rk=GG_RT_KEY[currentBrand], f=getFrom(), t=getTo(); if(!rk||!f||!t){ el.innerHTML=''; return; }
+  let recs=[]; try{ recs=JSON.parse(localStorage.getItem('team_realtime_'+rk+'_v1')||'[]')||[]; }catch{}
+  const by={};
+  recs.concat((window.DL_RT_FAKE||{})[rk]||[]).forEach(r=>{ if(r&&r.date>=f&&r.date<=t&&(r.fakeBuys||[]).length){ const o=by[r.date]; if(!o||(r.time==='0')||(o.time!=='0'&&r.time>o.time)) by[r.date]=r; } });
+  const items=Object.keys(by).sort().map(d=>`${d.slice(5)} `+by[d].fakeBuys.map(g=>`${GG_PLAT_KOR[g.plat]||g.plat}${g.prod?' '+g.prod:''} ${g.qty}개${g.amt!=null?' '+Number(g.amt).toLocaleString()+'원':''}`).join(', '));
+  el.innerHTML=items.length?`<div style="margin-top:9px;padding:9px 12px;border:2px solid #f97316;border-radius:9px;background:#fff7ed;color:#9a3412;font-size:12px;font-weight:700">🚫 실시간에 가구매 기록 있음: ${items.join(' / ')}<br><span style="font-weight:500">— 아래 가구매 제외에 입력했는지 확인하세요</span></div>`:'';
+}
 function ggRemove(i){ (state.gagumae||[]).splice(i,1); ggRender(); }
 
 function ggAddManual(){
@@ -6501,6 +6515,7 @@ function abBuildReport(bk){
   const dv=document.getElementById('ab-date')?.value||abDate||'';
   const hdr=abFmtDate(dv||ymdLocal(new Date()));
   const lines=[`${hdr} ${cfg.label} 잔여 예산입니다`,``];
+  bsAlerts(bk, dv||abToday()).filter(a=>a.lv!=='soft').forEach(a=>lines.push(a.text.replace(/^⛔ /,'⚠ '), ''));   // 🔔 BS 충전일
   cfg.platforms.forEach((pl,i)=>{
     const {ilso,jarye,chung}=abCalc(bk,i);
     lines.push(`[${pl.name}]`);
@@ -6538,7 +6553,7 @@ function renderABPanel(){
       ?`<td style="text-align:center;font-size:10px;color:#aaa;background:#fafafa">5M버퍼</td>`
       :`<td>${inp('extra',r.extra)}</td>`;
     h+=`<tr>
-      <td class="nm">${pl.name}${buf}</td>
+      <td class="nm">${pl.name}${buf}${/네이버sa/i.test(pl.name)?bsBadgeHTML(bk,abDate||abToday()):''}</td>
       <td>${(()=>{ const w=abRdWarn(bk,idx); if(!w) return inp('burn3',r.burn3);
         const u=abWarnUI(w, pl.name);
         const icls=u.bad?'ab-rdzero':'ab-rdbad', wcls=u.bad?'ab-rdwarn ab-rdwarn-zero':'ab-rdwarn';
@@ -6792,6 +6807,27 @@ function bsCostForDate(ds, product){
 }
 // 광고그룹/캠페인명 → BS 제품 판정('_압력이불' 포함=압력이불, 그 외=아크넨패드)
 function _bsProduct(campOrGroup){ const s=String(campOrGroup||''); return s.includes('커버') ? '압력커버' : s.includes('압력이불') ? '압력이불' : '아크넨패드'; }   // ★커버 먼저(2026-10-16)
+// 🔔 BS 갱신 알림(2026-10-26 사용자 요청): BS는 30일마다 갱신. 등록일 = 위 'BS 월 비용' 스케줄의 시작일(from).
+//   갱신일 = 등록일+30일. 충전일(월·목) 중 '갱신일 3일 전까지'의 마지막 날에 BS도 같이 충전·등록하라고 알린다(금액은 표시 안 함).
+const BS_PFX_OF = { granny:'gs_rd_', basetuneAB:'bt_rd_', hattkeAB:'ht_rd_', basetune:'bt_rd_', hattke:'ht_rd_' };
+function bsAddDays(ds,n){ const d=new Date(ds+'T00:00:00'); d.setDate(d.getDate()+n); return ymdLocal(d); }
+function bsChargeDay(renew){ const d=new Date(bsAddDays(renew,-3)+'T00:00:00'); while(d.getDay()!==1&&d.getDay()!==4) d.setDate(d.getDate()-1); return ymdLocal(d); }
+function bsAlerts(bk, today){
+  const pfx=BS_PFX_OF[bk]; if(!pfx) return [];
+  let arr=[]; try{ arr=JSON.parse(localStorage.getItem(pfx+'bs_schedule')||'[]')||[]; }catch{}
+  const last={}; arr.forEach(e=>{ if(e&&e.from&&e.from!=='1900-01-01'){ const p=e.product||''; if(!last[p]||last[p]<e.from) last[p]=e.from; } });
+  const md=x=>x.slice(5).replace('-','/');
+  return Object.entries(last).map(([prod,from])=>{
+    const renew=bsAddDays(from,30), cd=bsChargeDay(renew), pn=prod?prod+' ':'';
+    if(today>=renew) return {lv:'red', renew, text:`⛔ ${pn}BS 갱신일(${md(renew)}) 지남 — 새 등록일·월 비용 입력`};
+    if(today>=cd)    return {lv:'due', renew, text:`🔔 오늘 ${pn}BS 충전·등록 (갱신일 ${md(renew)})`};
+    if((new Date(cd+'T00:00:00')-new Date(today+'T00:00:00'))/864e5<=10) return {lv:'soft', renew, text:`${pn}BS 갱신 ${md(renew)} (충전일 ${md(cd)})`};
+    return null;
+  }).filter(Boolean);
+}
+function bsBadgeHTML(bk, today){
+  return bsAlerts(bk,today).map(a=>`<div style="font-size:10px;font-weight:700;margin-top:3px;padding:2px 5px;border-radius:5px;${a.lv==='soft'?'color:#6b7280;background:#f3f4f6':a.lv==='due'?'color:#b45309;background:#fef3c7':'color:#b91c1c;background:#fee2e2'}">${a.text}</div>`).join('');
+}
 
 function addBsSchedule(){
   const from=document.getElementById('bs-from-date')?.value;
@@ -6814,6 +6850,10 @@ function removeBsSchedule(from, product){
 }
 function renderBsSchedule(){
   const el=document.getElementById('bs-sched-list'); if(!el) return;
+  setTimeout(()=>{   // 🔔 갱신일이 됐거나 지났으면 새 값 입력 요청(스케줄 표 뒤에 붙임)
+    const due=bsAlerts(currentBrand, ymdLocal(new Date())).filter(a=>a.lv!=='soft');
+    if(due.length) el.insertAdjacentHTML('beforeend', due.map(a=>`<span style="font-size:11px;font-weight:700;color:#b91c1c;background:#fee2e2;border-radius:6px;padding:3px 8px">📝 BS 갱신일(${a.renew.slice(5).replace('-','/')}) — 새 BS 월 비용·등록일(시작일)을 입력해 주세요</span>`).join(''));
+  },0);
   const arr=getBsSchedule();
   if(!arr.length){ el.innerHTML='<span style="color:#a16207;font-size:10px">등록된 BS 비용 없음 — 시작일 + 월 계약금액 입력 후 [＋ 등록]</span>'; return; }
   const today=ymdLocal(new Date());
