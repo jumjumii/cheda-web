@@ -6200,6 +6200,23 @@ function fmtNumfmtAll(except){
     if(inp!==except && inp!==document.activeElement) inp.value=fmtCommaStr(inp.value);
   });
 }
+// ★2026-10-27 숫자 칸엔 숫자만(실시간 리포트처럼): '1,234원'·'abc12' 붙여넣어도 숫자만 남김. 콤마 표시는 위 focusout이 그대로 함.
+//   소수점은 전환수(buy) 칸만, 마이너스는 맨 앞만.
+const NUM_ONLY_SEL='input.numfmt, input[inputmode="numeric"], .dl-er input[data-f=cost], .dl-er input[data-f=buy], .dl-er input[data-f=rev]';
+function numOnly(v, dec){
+  let s=String(v), neg=/^\s*-/.test(s);
+  s=s.replace(/,/g,'');
+  if(!dec){ const i=s.indexOf('.'); if(i>=0) s=s.slice(0,i); }
+  s=s.replace(dec?/[^\d.]/g:/\D/g,'');
+  if(dec){ const i=s.indexOf('.'); if(i>=0) s=s.slice(0,i+1)+s.slice(i+1).replace(/\./g,''); }
+  return (neg?'-':'')+s;
+}
+document.addEventListener('input', e=>{
+  const t=e.target; if(!t||!t.matches||!t.matches(NUM_ONLY_SEL)) return;
+  const dec=/(^|-)buy\b/.test(t.className)||t.dataset.f==='buy';
+  const v=numOnly(t.value, dec);
+  if(v!==t.value) t.value=v;
+}, true);
 document.addEventListener('focusin', e=>{
   const t=e.target;
   if(t.classList&&t.classList.contains('numfmt')) t.value=String(t.value).replace(/,/g,'');

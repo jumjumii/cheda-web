@@ -2545,7 +2545,10 @@ rtSyncRecent(14);   // 교차검증용 — 최근 2주 기록을 서버 파일�
 #custom-ads .del-btn, #custom-sales .del-btn { display:none; }
 #custom-ads .x-on .del-btn, #custom-sales .x-on .del-btn { display:inline-block; }
 .rt-hid { display:none !important; }
-.rt-media-x { margin-left:4px; padding:0 5px; border:none; background:#fee2e2; color:#b91c1c; border-radius:4px; cursor:pointer; font-size:11px; }
+.rt-media-x { margin-left:4px; padding:0; border:none; background:none; color:#9ca3af; cursor:pointer; font-size:12px; font-weight:400; line-height:1; }
+.rt-media-x:hover { color:#dc2626; }
+#custom-ads .x-on .del-btn, #custom-sales .x-on .del-btn { padding:0 2px; border:none; background:none; color:#9ca3af; font-size:12px; box-shadow:none; }
+#custom-ads .x-on .del-btn:hover, #custom-sales .x-on .del-btn:hover { color:#dc2626; background:none; }
 </style>
 <script>
 // ── 광고비 매체 지우기/숨기기(2026-10-27): 매체 이름을 누르면 ✕가 뜸 ──
@@ -2582,10 +2585,11 @@ document.addEventListener('click', e => {
   const lab = e.target.closest('.input-block .input-group > label');
   if (lab && /광고비/.test((lab.closest('.input-block').querySelector('.block-label') || {}).textContent || '')) {
     const inp = lab.parentElement.querySelector('input[id^="inp-"]');
-    if (inp && !lab.parentElement.querySelector('.rt-media-x') && lab.textContent.trim()) {   // ✕는 <label> 밖에(안에 넣으면 라벨 클릭이 ✕로 넘어가 바로 지워짐)
-      const b = document.createElement('button'); b.className = 'rt-media-x'; b.textContent = '✕'; b.title = '이 브랜드에서 숨기기';
-      b.onclick = ev => { ev.preventDefault(); ev.stopPropagation(); const n = lab.textContent.trim(); b.remove(); rtMediaHide(inp.id, n); };
-      lab.insertAdjacentElement('afterend', b);
+    if (inp && !lab.querySelector('.rt-media-x') && lab.textContent.trim()) {   // 이름 바로 옆 가벼운 ×(span이라 라벨 클릭이 ×로 넘어가지 않음)
+      const n = lab.textContent.trim();
+      const b = document.createElement('span'); b.className = 'rt-media-x'; b.textContent = '×'; b.title = '이 브랜드에서 숨기기';
+      b.onclick = ev => { ev.preventDefault(); ev.stopPropagation(); b.remove(); rtMediaHide(inp.id, n); };
+      lab.appendChild(b);
     }
   }
   const nm = e.target.closest('#custom-ads .channel-name, #custom-sales .channel-name');   // 직접 추가한 칸: 이름 누르면 ✕ 보임
