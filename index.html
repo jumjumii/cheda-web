@@ -46,7 +46,9 @@
 const PAGES = { realtime: 'realtime/index.html', daily: 'daily.html', rocket: 'rocket.html', health: 'health.html' };
 // 잠금: 공유저장 주소·비밀값은 잠금.enc 에 비밀번호로 잠겨 있다(AES-256-GCM, PBKDF2 25만 번 — 잠금만들기.py).
 // 한 번 열면 이 브라우저가 기억한다. 로그아웃 = 잊기.
-const opened = () => { try { const c = JSON.parse(localStorage.getItem('rt_db') || '{}'); return c.url && c.token; } catch (e) { return false; } };
+// ★저장소(백엔드) 주소가 바뀌면 이 값을 올린다 → 옛 주소를 기억한 브라우저는 비밀번호를 한 번 다시 묻고 새 주소로 바뀐다
+const LOCK_VER = '2026-10-27-company';
+const opened = () => { try { if (localStorage.getItem('rt_db_ver') !== LOCK_VER) return false; const c = JSON.parse(localStorage.getItem('rt_db') || '{}'); return c.url && c.token; } catch (e) { return false; } };
 async function unlock(pw) {
   const r = await fetch('잠금.enc', { cache: 'no-store' }); if (!r.ok) throw new Error('잠금 파일 없음');
   const b = new Uint8Array(await r.arrayBuffer());
@@ -66,7 +68,7 @@ function askPw() {
     go.disabled = true; say.textContent = '여는 중…'; say.style.color = '';
     try {
       const txt = await unlock(pw);
-      localStorage.setItem('rt_db', txt); if (who) localStorage.setItem('rt_db_who', who);
+      localStorage.setItem('rt_db', txt); localStorage.setItem('rt_db_ver', LOCK_VER); if (who) localStorage.setItem('rt_db_who', who);
       lk.hidden = true; show(true); healthBanner();
     } catch (err) {
       go.disabled = false; say.textContent = '비밀번호가 다릅니다'; say.style.color = '#c5372c'; document.getElementById('lk-pw').select();
