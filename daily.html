@@ -6544,6 +6544,7 @@ function abBuildReport(bk){
     lines.push(`충전금 ${abFmt(chung)}`);
     lines.push(``);
   });
+  const bs=abBsState(bk); if(abGetVal(bs.amt)>0){ lines.push(`[네이버 BS${bs.prod?' '+bs.prod:''}]`); lines.push(`충전금 ${abFmt(abGetVal(bs.amt))}`); lines.push(``); }
   return lines.join('\n').trimEnd();
 }
 
@@ -6573,7 +6574,7 @@ function renderABPanel(){
       ?`<td style="text-align:center;font-size:10px;color:#aaa;background:#fafafa">5M버퍼</td>`
       :`<td>${inp('extra',r.extra)}</td>`;
     h+=`<tr>
-      <td class="nm">${pl.name}${buf}${/네이버sa/i.test(pl.name)?bsBadgeHTML(bk,abDate||abToday()):''}</td>
+      <td class="nm">${pl.name}${buf}</td>
       <td>${(()=>{ const w=abRdWarn(bk,idx); if(!w) return inp('burn3',r.burn3);
         const u=abWarnUI(w, pl.name);
         const icls=u.bad?'ab-rdzero':'ab-rdbad', wcls=u.bad?'ab-rdwarn ab-rdwarn-zero':'ab-rdwarn';
@@ -6590,6 +6591,7 @@ function renderABPanel(){
   });
 
   h+=`</tbody></table></div>`;
+  h+=abBsBlockHTML(bk);
 
   // 보고서 미리보기
   const rptText=abBuildReport(bk);
@@ -6849,6 +6851,46 @@ function bsBadgeHTML(bk, today){
   return bsAlerts(bk,today).map(a=>`<div style="font-size:10px;font-weight:700;margin-top:3px;padding:2px 5px;border-radius:5px;${a.lv==='soft'?'color:#6b7280;background:#f3f4f6':a.lv==='due'?'color:#b45309;background:#fef3c7':'color:#b91c1c;background:#fee2e2'}">${a.text}</div>`).join('');
 }
 
+// 💰 광고비 충전 'BS' 칸(2026-10-27 사용자 요청): 현재 BS(금액·등록일·종료일·D-day)+갱신 알림+이번 충전 금액(해트케는 제품 선택).
+//   기록 저장 시 금액이 있으면 그 BS의 '끝나는 날'부터 30일짜리 새 일정을 데일리 BS 스케줄에 추가(같은 날 다시 저장하면 그 항목만 고침).
+const BS_PRODS = ['아크넨패드','압력이불','압력커버'];
+function abBsState(bk){ abState._bs=abState._bs||{}; return abState._bs[bk]=abState._bs[bk]||{amt:'',prod:''}; }
+function abBsSched(bk){ let a=[]; try{ a=JSON.parse(localStorage.getItem(BS_PFX_OF[bk]+'bs_schedule')||'[]')||[]; }catch{} return Array.isArray(a)?a.filter(e=>e&&e.from&&e.cost>0):[]; }
+function abBsLatest(bk, prod){ return abBsSched(bk).filter(e=>e.from!=='1900-01-01' && (e.product||'')===prod).sort((x,y)=>x.from.localeCompare(y.from)).pop(); }
+function abBsBlockHTML(bk){
+  if(!BS_PFX_OF[bk] || bk==='salagrisAB') return '';
+  const hat=bk==='hattkeAB', st=abBsState(bk), today=abDate||abToday(), md=x=>x.slice(5).replace('-','/');
+  if(hat && !st.prod) st.prod=(abBsSched(bk).find(e=>e.product)||{}).product||'압력이불';
+  const prods = hat ? [...new Set([...abBsSched(bk).map(e=>e.product).filter(Boolean), ...BS_PRODS])] : [''];
+  const cur = prods.map(p=>{ const e=abBsLatest(bk,p);
+    if(!e) return hat?'':`<span style="color:#a16207">등록된 BS 없음 — 데일리리포트 'NAVER BS 월 비용'에 마지막 등록일로 한 번 등록해 주세요</span>`;
+    const end=bsAddDays(e.from,30), dd=Math.round((new Date(end+'T00:00:00')-new Date(today+'T00:00:00'))/864e5);
+    return `<span style="display:inline-block;margin:2px 10px 2px 0">${p?'<b style="color:#7c3aed">'+p+'</b> ':''}${e.cost.toLocaleString()}원 · ${md(e.from)}~${md(end)} <b style="color:${dd<=3?'#dc2626':'#374151'}">D-${dd}</b></span>`; }).join('');
+  const sel = hat ? `<select onchange="abBsState('${bk}').prod=this.value;abSave();renderABPanel()" style="padding:4px;border-radius:6px">${prods.map(p=>`<option ${p===st.prod?'selected':''}>${p}</option>`).join('')}</select>` : '';
+  return `<div class="ab-bs" style="margin-top:10px;padding:10px 12px;border:1.5px solid #fde047;border-radius:10px;background:#fffbeb">
+    <div style="font-weight:800;font-size:13px;margin-bottom:4px">📌 네이버 BS</div>
+    <div style="font-size:12px">${cur}</div>${bsBadgeHTML(bk,today)}
+    <div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px">이번에 충전할 BS ${sel}
+      <input type="text" inputmode="numeric" class="ab-bs-amt" placeholder="BS 금액(월 계약금액)" value="${abFmtInput(st.amt)}" style="width:150px;padding:5px;border:1px solid #d0d5dd;border-radius:6px"
+        oninput="abBsState('${bk}').amt=this.value.replace(/,/g,'');abSave()">
+      <span style="color:#a16207">→ [기록 저장] 하면 지금 BS 끝나는 날부터 30일 일정으로 데일리 BS 비용에 자동 추가</span></div></div>`;
+}
+function abBsExtend(dateVal){
+  const msgs=[];
+  AB_KEYS.forEach(bk=>{
+    const st=abBsState(bk), amt=abGetVal(st.amt); if(!amt || !BS_PFX_OF[bk] || bk==='salagrisAB') return;
+    const prod=bk==='hattkeAB'?(st.prod||'압력이불'):'';
+    let start=st.added;   // 같은 충전 날짜에 다시 저장 → 그 항목 금액만 수정(중복 안 생김)
+    if(!start){ const e=abBsLatest(bk,prod); start=e?bsAddDays(e.from,30):dateVal; st.added=start; }
+    const arr=abBsSched(bk).filter(e=>!(e.from===start && (e.product||'')===prod));
+    arr.push({from:start,cost:amt,product:prod}); arr.sort((a,b)=>a.from.localeCompare(b.from));
+    localStorage.setItem(BS_PFX_OF[bk]+'bs_schedule', JSON.stringify(arr));
+    msgs.push(`BS 일정 추가: ${AB_CFG[bk].label}${prod?' '+prod:''} ${start.slice(5).replace('-','/')}~${bsAddDays(start,30).slice(5).replace('-','/')} ${amt.toLocaleString()}원`);
+  });
+  if(msgs.length){ abSave(); if(typeof renderBsSchedule==='function') renderBsSchedule(); renderABPanel(); }
+  return msgs.join('\n');
+}
+
 function addBsSchedule(){
   const from=document.getElementById('bs-from-date')?.value;
   const cost=parseFloat(document.getElementById('bs-monthly-cost')?.value)||0;
@@ -6921,7 +6963,8 @@ function abSaveHistory(){
   if(hist.length>60) hist=hist.slice(0,60);
   localStorage.setItem('ab_history',JSON.stringify(hist));
   renderABHistory();
-  showToast('기록 저장 완료: '+dateVal);
+  const bsMsg=abBsExtend(dateVal);
+  showToast('기록 저장 완료: '+dateVal+(bsMsg?'\n'+bsMsg:''));
 }
 
 function renderABHistory(){
