@@ -132,13 +132,10 @@ async function abPull() {
 
 // ── 3) 엑셀로 보내기 → 시트(kind 'xl'). 엑셀 PC가 받아서 넣는다 ──
 async function dlAllInOne() {
-  const p = window._dlLast;
-  try {
-    if (!p || !(p.blocks || []).length) throw new Error('보낼 데이터 없음');
-    const ts = String(p.ts || Date.now());
-    await dlPut(dlSplit(ts, p).map(x => ({ brand: p.brand, date: dlYmd(new Date()), kind: 'xl', media: x.media, value: x.value })));
-    return { json: async () => ({ ok: true }) };
-  } catch (e) { return { json: async () => ({ ok: false, error: '시트로 못 보냄: ' + e.message }) }; }
+  // ★2026-10-27 원래 방식 그대로: 클립보드에 복사된 묶음을 이 PC의 수집 서버가 올인원으로 엑셀에 넣는다(/allinone).
+  //   수집 서버가 없는 PC(다른 팀원)면 안내만 — 엑셀 파일이 있는 PC에서 보내야 함.
+  try { return await fetch('http://127.0.0.1:8765/allinone'); }
+  catch (e) { return { json: async () => ({ ok: false, error: '이 PC에는 수집 서버가 없어요 — 엑셀이 있는 PC(데일리리포트.bat 켜진 PC)에서 엑셀로 보내기를 눌러 주세요. (클립보드에는 복사됨)' }) }; }
 }
 
 // ── 4) 파일 매체 직접 수정 ──

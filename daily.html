@@ -4904,7 +4904,7 @@ function exportForExcel(){
   const runAllInOne=()=>{
     showToast(`📤 보냄 → ${summary}\n올인원 자동 실행 중… (엑셀 창을 확인하세요)`);
     dlAllInOne().then(r=>r.json()).then(d=>{
-      if(d && d.ok) showToast('✅ 시트로 보냄 — 엑셀 PC가 켜져 있으면 몇 분 안에 팀 엑셀에 들어갑니다.');
+      if(d && d.ok) showToast('✅ 올인원 실행됨 — 새 검은 창에서 진행됩니다. 엑셀을 미리 열어두세요.');
       else showToast('⚠ 올인원 자동실행 실패: '+((d&&d.error)||'')+'\n수동으로 데일리리포트.bat(3번 엑셀로 보내기) 실행하세요.');
     }).catch(()=>showToast('⚠ 수집서버 미연결 — "데일리리포트.bat"을 켠 상태인지 확인하세요(또는 데일리리포트.bat(3번 엑셀로 보내기) 직접 실행).'));
   };
@@ -4955,7 +4955,7 @@ async function exportSelectedDates(){
   const runAllInOne=()=>{
     showToast(`📤 ${dates.length}일치(${range}) 보냄 → ${summary}\n올인원 자동 실행 중…`);
     dlAllInOne().then(r=>r.json()).then(d=>{
-      if(d&&d.ok) showToast('✅ 시트로 보냄 — 엑셀 PC가 켜져 있으면 몇 분 안에 팀 엑셀에 들어갑니다.');
+      if(d&&d.ok) showToast('✅ 올인원 실행됨 — 엑셀 창을 확인하세요.');
       else showToast('⚠ 올인원 자동실행 실패: '+((d&&d.error)||'')+'\n데일리리포트.bat(3번 엑셀로 보내기) 직접 실행하세요.');
     }).catch(()=>showToast('⚠ 수집서버 미연결 — "데일리리포트.bat"을 켜세요(또는 데일리리포트.bat(3번 엑셀로 보내기) 직접 실행).'));
   };
