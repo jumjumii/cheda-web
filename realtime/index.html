@@ -771,7 +771,7 @@ const RT_COUPON_LS = 'cp_coupon_cache';   // 데일리리포트와 같은 캐시
 // ★쿠팡 슬롯 = 계정 고정 배정(데일리리포트와 동일한 계정 목록).
 //   수집 전에도 '쿠팡1=…'처럼 보이고 그 계정 쿠폰단가가 미리 채워진다.
 //   수집 결과는 순서가 아니라 **계정 id로 매칭**해 같은 슬롯에 들어간다(2026-08-05 요청).
-const RT_CP_ACCOUNTS = { granny: [], hattke: [], basetune: [] };   // 계정 목록은 비공개 시트에서(공유저장.js dbConfig)
+const RT_CP_ACCOUNTS = { granny: [], hattke: [], basetune: [], salagris: [] };   // 계정 목록은 비공개 시트에서(공유저장.js dbConfig)
 function rtCpAccounts() { return RT_CP_ACCOUNTS[rtCouponBrand()] || RT_CP_ACCOUNTS.granny; }
 function rtSlotOfAcct(id) {                     // 계정 → 슬롯번호(없으면 0)
   const list = rtCpAccounts();
@@ -1274,7 +1274,7 @@ const RT_COLLECT = {
   hattke:      { ab:'hattkeAB',   meta:'hattke',   gfaAcct:'', cafe24:'hattke',   product:'압력이불', coupang:'hattke', coupangLabel:'해트케',
     saAcct:'', saReport:'', kakaoAcct:'', pbOnly:true, sojeUrl:'' },
   // 샐러그리스(2026-10-23): 광고비만(메타·구글·틱톡·네이버SA). 매출 채널(카페24 API·스토어·쿠팡) 미연결 → 손입력
-  salagris:    { ab:'salagrisAB', meta:'salagris', gfaAcct:'', cafe24:'', product:'', coupang:null,
+  salagris:    { ab:'salagrisAB', meta:'salagris', gfaAcct:'', cafe24:'', product:'', coupang:'salagris', coupangLabel:'샐러그리스',
     saAcct:'', saReport:'', saKw:'salagreece', sojeUrl:'' },
 };
 
@@ -1302,7 +1302,7 @@ function rtKinds(cfg) {
   if (cfg && cfg.saAcct) k.splice(3, 0, ['naversa','네이버SA']);
   if (cfg && cfg.kakaoAcct) k.splice(4, 0, ['kakao','카카오']);
   // 매출 채널이 아예 없는 브랜드(샐러그리스)는 매출 수집을 건너뜀 — '미설정' 실패로 안 뜨게
-  if (cfg && cfg.cafe24 === '' && !cfg.product && !cfg.coupang) return k.filter(x => !['cafe24','coupang','smartstore'].includes(x[0]));
+  if (cfg && cfg.cafe24 === '' && !cfg.product) return k.filter(x => !['cafe24','smartstore'].includes(x[0]) && (x[0] !== 'coupang' || cfg.coupang));   // 샐러그리스: 쿠팡만(2026-10-27)
   return k;
 }
 let _rtTO = 180000;   // 현재 매체 제한(수집 직전 설정)
