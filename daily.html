@@ -1945,7 +1945,7 @@ async function cpRocketCheck(){
   const d=j.yday, rv=j.brands[bn][0], rq=j.brands[bn][1]; if(rv<30000) return;
   const n=v=>Number(String(v??'').replace(/[^0-9.-]/g,''))||0;
   const dv=readManualRows().cp.filter(r=>r.date===d).reduce((t,r)=>t+n(r.rev),0);
-  if(dv>=rv*0.9) return;
+  if(dv>=rv*0.7) return;   // 2026-10-27 로켓 "어제"와 판매분석은 집계 시각이 달라 ±10~20%는 정상 → 30% 넘게 낮을 때만(계정 통째 누락)
   const box=document.createElement('div'); box.id='cp-rk-warn';
   box.style.cssText='margin:0 0 12px;padding:10px 14px;border:2px solid #dc2626;border-radius:10px;background:#fef2f2;color:#b91c1c;font-weight:700;font-size:13px';
   box.textContent=`🔴 ${d} 쿠팡 매출 ${Math.round(dv).toLocaleString()} < 로켓 재고(어제) ${Math.round(rv).toLocaleString()} (${rq}개) — ${dv<=0?'데일리 쿠팡 값 없음':'로켓분보다 낮음, 일부 계정 누락?'}`;

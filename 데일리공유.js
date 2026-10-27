@@ -366,7 +366,7 @@ dlRtCheck = async function () {
     const [rv, rq] = rk[bn], dv = dlDaily(d).coupang; if (rv < 30000) continue;
     const txt = `${d} 쿠팡 매출: 데일리 ${Math.round(dv).toLocaleString()} / 로켓 재고(어제) ${Math.round(rv).toLocaleString()} (${rq}개)`;
     if (dv <= 0) out.push(txt + ' — 데일리 쿠팡 값 없음(수집 누락?)');
-    else if (dv < rv * 0.9) out.push(txt + ` (${Math.round((dv - rv) / rv * 100)}%) — 로켓분보다 낮음(일부 계정 누락?)`);
+    else if (dv < rv * 0.7) out.push(txt + ` (${Math.round((dv - rv) / rv * 100)}%) — 로켓분보다 낮음(일부 계정 누락?)`);
   }
   document.getElementById('dl-rk')?.remove();
   if (!out.length) return;
