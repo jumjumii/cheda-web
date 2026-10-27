@@ -6349,7 +6349,8 @@ function abWarnUI(w, plName){
 function abFlexDocs(bk){
   const cfg=AB_CFG[bk], docs=[], skipped=[], noform=[];
   cfg.platforms.forEach((pl,idx)=>{
-    const amount=abCalc(bk,idx).chung;
+    // ★2026-10-27 BS는 네이버 SA 충전금과 같이 충전(플렉스 BS 양식 없음) → SA 문서 금액에 BS 더함
+    const amount=abCalc(bk,idx).chung + (/^네이버\s*sa$/i.test(pl.name) ? abGetVal(abBsState(bk).amt) : 0);
     if(!amount||amount<=0) return;                 // 충전금 없으면 스킵
     const pk=abFlexPlatKey(pl.name);
     if(AB_FLEX_NOFORM.includes(pk)){ noform.push(pl.name+' ₩'+Number(amount).toLocaleString()); return; }
@@ -6536,15 +6537,16 @@ function abBuildReport(bk){
   const hdr=abFmtDate(dv||ymdLocal(new Date()));
   const lines=[`${hdr} ${cfg.label} 잔여 예산입니다`,``];
   bsAlerts(bk, dv||abToday()).filter(a=>a.lv!=='soft').forEach(a=>lines.push(a.text.replace(/^⛔ /,'⚠ '), ''));   // 🔔 BS 충전일
+  const bs=abBsState(bk), bsAmt=abGetVal(bs.amt);
   cfg.platforms.forEach((pl,i)=>{
     const {ilso,jarye,chung}=abCalc(bk,i);
+    const sa=/^네이버\s*sa$/i.test(pl.name) && bsAmt>0;   // BS는 SA 충전금과 같이 충전
     lines.push(`[${pl.name}]`);
     lines.push(`일 평균 소진비용 ${abFmt(ilso)}`);
     lines.push(`잔여 예산 ${abFmt(jarye)}`);
-    lines.push(`충전금 ${abFmt(chung)}`);
+    lines.push(sa ? `충전금 ${abFmt(chung+bsAmt)} (SA ${abFmt(chung)} + BS${bs.prod?' '+bs.prod:''} ${abFmt(bsAmt)})` : `충전금 ${abFmt(chung)}`);
     lines.push(``);
   });
-  const bs=abBsState(bk); if(abGetVal(bs.amt)>0){ lines.push(`[네이버 BS${bs.prod?' '+bs.prod:''}]`); lines.push(`충전금 ${abFmt(abGetVal(bs.amt))}`); lines.push(``); }
   return lines.join('\n').trimEnd();
 }
 
