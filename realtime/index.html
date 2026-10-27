@@ -507,7 +507,7 @@ td.cell-diff { background: rgba(245,158,11,0.16); color: #fcd34d !important; fon
     <button class="btn btn-ghost" onclick="rtExport()" title="세 브랜드 기록 전부를 JSON 파일로 내립니다. 다른 계정·다른 PC에서 [가져오기]로 넣으면 같은 데이터를 봅니다.">⬇ 내보내기</button>
     <button class="btn btn-ghost" onclick="document.getElementById('rt-import-file').click()" title="받은 JSON 파일을 넣습니다. 같은 날짜·같은 시간대는 파일 값으로 덮어쓰고, 없던 기록은 추가합니다.">⬆ 가져오기</button>
     <input type="file" id="rt-import-file" accept=".json,application/json" style="display:none" onchange="rtImport(this)">
-    <button class="btn btn-ghost" onclick="copyToSheet()">잔디용 복사</button>
+    <button class="btn btn-ghost" onclick="copyToSheet()">보고서 복사</button>
     <button class="btn btn-ghost" onclick="sendToSlack()" title="현재 브랜드의 최신 기록을 슬랙 채널로 전송합니다. (수집서버 slack_config.json 에 웹훅 필요)">📤 슬랙 전송</button>
     <button class="btn btn-primary" onclick="saveRecord()">저장</button>
   </div>
@@ -2318,7 +2318,26 @@ function riToastNone() { rtToast('❌ 이 파일에 아는 브랜드 기록이 �
 
 // ──── 리포트 텍스트 생성 (잔디/슬랙 공용) ────
 // 특정 레코드 r + 브랜드키 → {dateStr, text}. copyToSheet·자동수집·슬랙이 모두 이 함수 하나를 씀(포맷 일원화)
+// ★2026-10-27 보고서 문구 = 수집기에 보이는 매체만: 숨긴 기본 매체는 0으로, 수집기에서 지운 직접 추가 칸은 빼고 계산
+//   (합계·ROAS·CPA도 보이는 매체 기준이라 문구 안 숫자가 서로 맞는다). 아래 '리포트 기록' 표는 원래 값 그대로.
+function rtReportRec(r, bk) {
+  const hid = typeof rtHidList === 'function' ? rtHidList(bk) : [];
+  let cus = bk === currentBrand ? RT_CUSTOM : null;
+  if (!cus) { try { cus = JSON.parse(localStorage.getItem(RT_CUSTOM_LS(bk)) || 'null'); } catch (e) {} }
+  cus = cus || { sales: [], ads: [] };
+  const o = Object.assign({}, r);
+  hid.forEach(id => { o[id.replace(/^inp-/, '')] = 0; });
+  Object.keys(o).forEach(k => {
+    const a = /^ca_(.+)$/.exec(k), sm = /^cs_(.+?)(Sales|Orders|Refund)$/.exec(k);
+    if (a && !(cus.ads || []).some(x => x.id === a[1])) delete o[k];
+    if (sm && !(cus.sales || []).some(x => x.id === sm[1])) delete o[k];
+  });
+  return { r: o, hid };
+}
+
 function buildReportText(r, brandKey) {
+  const rh = rtReportRec(r, brandKey); r = rh.r;
+  const show = f => !rh.hid.includes('inp-' + f);
   const DOW = ['일', '월', '화', '수', '목', '금', '토'];
   const n = v => Math.round(v).toLocaleString();
   const m  = calcMetrics(r);
@@ -2343,12 +2362,12 @@ function buildReportText(r, brandKey) {
       `[해트케 압력이불 성과] ${dateStr}`,
       '',
       `•    광고비 ${n(m.adspend)}`,
-      `    ◦    틱톡 ${n(r.tiktok || 0)}`,
-      `    ◦    구글 ${n(r.google || 0)}`,
-      `    ◦    메타 ${n(r.meta || 0)}`,
-      `    ◦    네이버SA ${n(r.naversa || 0)}`,
-      `    ◦    GFA ${n(r.gfa || 0)}`,
-      `    ◦    카카오 ${n(r.kakao || 0)}`,
+      show('tiktok') ? `    ◦    틱톡 ${n(r.tiktok || 0)}` : null,
+      show('google') ? `    ◦    구글 ${n(r.google || 0)}` : null,
+      show('meta') ? `    ◦    메타 ${n(r.meta || 0)}` : null,
+      show('naversa') ? `    ◦    네이버SA ${n(r.naversa || 0)}` : null,
+      show('gfa') ? `    ◦    GFA ${n(r.gfa || 0)}` : null,
+      show('kakao') ? `    ◦    카카오 ${n(r.kakao || 0)}` : null,
       ...m.customAds.items.map(it => `    ◦    ${it.name} ${n(it.cost)}`),
       `•    매출 ${n(m.revenue)} / ${m.orders}`,
       `    ◦    자사몰 ${n(m.cafe24Net)} / ${r.cafe24Orders || 0}`,
@@ -2358,7 +2377,7 @@ function buildReportText(r, brandKey) {
       `•    ROAS ${m.roas.toFixed(0)}% / CPA ${n(m.cpa)}`,
       `•    객단가 ${n(m.aov)}`,
       `•    결제 비율 (자사몰 ${selfPct}% / 외 ${otherPct}%)`,
-    ].join('\n') + memoLine;
+    ].filter(x => x !== null).join('\n') + memoLine;
     return { dateStr, text };
   }
 
@@ -2366,10 +2385,10 @@ function buildReportText(r, brandKey) {
     `[${brandLabel}] ${dateStr}`,
     '',
     `•    광고비 ${n(m.adspend)}`,
-    `    ◦    메타 ${n(r.meta || 0)}`,
-    `    ◦    구글 ${n(r.google || 0)}`,
-    `    ◦    틱톡 ${n(r.tiktok || 0)}`,
-    `    ◦    GFA ${n(r.gfa || 0)}`,
+    show('meta') ? `    ◦    메타 ${n(r.meta || 0)}` : null,
+    show('google') ? `    ◦    구글 ${n(r.google || 0)}` : null,
+    show('tiktok') ? `    ◦    틱톡 ${n(r.tiktok || 0)}` : null,
+    show('gfa') ? `    ◦    GFA ${n(r.gfa || 0)}` : null,
     ...m.customAds.items.map(it => `    ◦    ${it.name} ${n(it.cost)}`),
     '',
     `•    매출 ${n(m.revenue)} / ${m.orders}`,
@@ -2381,7 +2400,7 @@ function buildReportText(r, brandKey) {
     `•    ROAS ${m.roas.toFixed(0)}% / CPA ${n(m.cpa)}`,
     `•    객단가 ${n(m.aov)}`,
     `•    결제 비율 (자사몰 ${selfPct}% / 외 ${otherPct}%)`,
-  ].join('\n') + memoLine;
+  ].filter(x => x !== null).join('\n') + memoLine;
   return { dateStr, text };
 }
 
@@ -2555,7 +2574,7 @@ rtSyncRecent(14);   // 교차검증용 — 최근 2주 기록을 서버 파일�
 //   직접 추가한 칸 → 기존 rtCustomRemove(입력칸 삭제, 저장된 숫자는 그대로)
 //   기본 매체(메타·구글·틱톡·GFA·네이버SA·카카오) → 이 브랜드에서 숨김(rt_hidden_media_<브랜드>), ⋯더보기에서 되돌림
 const RT_HID_LS = () => 'rt_hidden_media_' + currentBrand;
-function rtHidList() { try { return JSON.parse(localStorage.getItem(RT_HID_LS()) || '[]'); } catch (e) { return []; } }
+function rtHidList(bk) { try { return JSON.parse(localStorage.getItem('rt_hidden_media_' + (bk || currentBrand)) || '[]'); } catch (e) { return []; } }
 function rtHidApply() {
   const hid = rtHidList();
   document.querySelectorAll('.input-block').forEach(b => {

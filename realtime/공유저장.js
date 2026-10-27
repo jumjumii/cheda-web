@@ -84,8 +84,34 @@ async function dbConfig() {
     applyBrand(currentBrand);   // 네이버SA 칸 등 계정 유무로 보이는 칸 다시 그림
   } catch (e) {}
 }
-dbConfig().then(dbPull);
-setInterval(dbPull, 5 * 60 * 1000);   // 5분마다 팀원 저장분 반영
+// ★2026-10-27 숨긴 기본 매체(rt_hidden_media_<브랜드>)·직접 추가 칸 목록(rt_custom_<브랜드>)도 팀 공용.
+//   시트 행: brand '설정', date 2000-01-09, kind 'rtui', media=<브라우저 저장 키>, value=목록(지우면 null).
+//   한 사람이 ×로 숨기면 모두의 수집기·보고서 복사에서 빠진다(리포트 기록 표는 그대로).
+const RTUI_KEY = /^(rt_hidden_media_|rt_custom_)/;
+const _rtuiSet = Storage.prototype.setItem, _rtuiDel = Storage.prototype.removeItem;
+let rtuiQuiet = false;
+function rtuiPush(k, v) {
+  if (rtuiQuiet || !RTDB.url) return;
+  dbCall({ action: 'put', by: dbWho(), rows: [{ brand: '설정', date: '2000-01-09', kind: 'rtui', media: k, value: v == null ? null : JSON.parse(v) }] })
+    .catch(e => dbBadge('숨김 저장 실패 — ' + e.message, false));
+}
+Storage.prototype.setItem = function (k, v) { _rtuiSet.call(this, k, v); if (this === localStorage && RTUI_KEY.test(k)) rtuiPush(k, v); };
+Storage.prototype.removeItem = function (k) { _rtuiDel.call(this, k); if (this === localStorage && RTUI_KEY.test(k)) rtuiPush(k, null); };
+async function rtuiPull() {
+  if (!RTDB.url) return;
+  let rows; try { rows = (await dbCall({ action: 'get', brand: '설정', from: '2000-01-09', to: '2000-01-09' })).rows.filter(r => r.kind === 'rtui'); } catch (e) { return; }
+  const before = JSON.stringify(typeof RT_CUSTOM !== 'undefined' ? RT_CUSTOM : null), seen = new Set();
+  rtuiQuiet = true;
+  rows.forEach(r => { seen.add(r.media); try { r.value == null ? _rtuiDel.call(localStorage, r.media) : _rtuiSet.call(localStorage, r.media, JSON.stringify(r.value)); } catch (e) {} });
+  rtuiQuiet = false;
+  for (let i = 0; i < localStorage.length; i++) {          // 이 브라우저에만 있던 목록 → 시트로(처음 한 번 이사)
+    const k = localStorage.key(i); if (k && RTUI_KEY.test(k) && !seen.has(k)) rtuiPush(k, localStorage.getItem(k));
+  }
+  if (typeof rtCustomLoad === 'function') { rtCustomLoad(); if (JSON.stringify(RT_CUSTOM) !== before) rtCustomRender(); }   // 바뀐 때만 다시 그림(입력 중인 값 보호)
+  if (typeof rtHidApply === 'function') rtHidApply();
+}
+dbConfig().then(rtuiPull).then(dbPull);
+setInterval(() => rtuiPull().then(dbPull), 5 * 60 * 1000);   // 5분마다 팀원 저장분 반영
 
 // 웹판에선 팀 시트로 자동 반영되므로 '🌙 자동수집 불러오기'는 숨김(2026-10-27)
 (function(){ var c=document.createElement("style"); c.textContent="button[onclick^=\"importRtSnapshot\"]{display:none!important}"; document.head.appendChild(c); })();
