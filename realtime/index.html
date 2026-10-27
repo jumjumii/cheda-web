@@ -578,6 +578,7 @@ td.cell-diff { background: rgba(245,158,11,0.16); color: #fcd34d !important; fon
           <span style="opacity:0.7">(셀에 마우스 올리면 사유 표시)</span>
         </div>
         <button class="btn btn-danger" onclick="clearAll()">전체 초기화</button>
+        <button class="btn btn-ghost more-x" onclick="rtMediaRestore()" title="이 브랜드에서 숨긴 광고비 매체를 다시 보이게 합니다">숨긴 매체 다시 보이기</button>
       </div>
       <div class="filter-row">
         <span class="filter-label">기간 필터</span>
@@ -2537,6 +2538,63 @@ rtSyncRecent(14);   // 교차검증용 — 최근 2주 기록을 서버 파일�
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',apply); else apply();
   setTimeout(apply,1500); setTimeout(apply,4000);
+})();
+</script>
+<style>
+/* 2026-10-27 광고비 매체 이름을 눌러야 ✕가 보임(실수로 지우지 않게) */
+#custom-ads .del-btn, #custom-sales .del-btn { display:none; }
+#custom-ads .x-on .del-btn, #custom-sales .x-on .del-btn { display:inline-block; }
+.rt-hid { display:none !important; }
+.rt-media-x { margin-left:4px; padding:0 5px; border:none; background:#fee2e2; color:#b91c1c; border-radius:4px; cursor:pointer; font-size:11px; }
+</style>
+<script>
+// ── 광고비 매체 지우기/숨기기(2026-10-27): 매체 이름을 누르면 ✕가 뜸 ──
+//   직접 추가한 칸 → 기존 rtCustomRemove(입력칸 삭제, 저장된 숫자는 그대로)
+//   기본 매체(메타·구글·틱톡·GFA·네이버SA·카카오) → 이 브랜드에서 숨김(rt_hidden_media_<브랜드>), ⋯더보기에서 되돌림
+const RT_HID_LS = () => 'rt_hidden_media_' + currentBrand;
+function rtHidList() { try { return JSON.parse(localStorage.getItem(RT_HID_LS()) || '[]'); } catch (e) { return []; } }
+function rtHidApply() {
+  const hid = rtHidList();
+  document.querySelectorAll('.input-block').forEach(b => {
+    if (!/광고비/.test((b.querySelector('.block-label') || {}).textContent || '')) return;
+    b.querySelectorAll(':scope > .input-group').forEach(g => {
+      const inp = g.querySelector('input[id^="inp-"]'); if (!inp) return;
+      g.classList.toggle('rt-hid', hid.includes(inp.id));
+    });
+  });
+}
+function rtMediaHide(id, name) {
+  const inp = document.getElementById(id);
+  if (inp && inp.value && Number(inp.value) !== 0 &&
+      !confirm(`'${name}'에 지금 ${Number(inp.value).toLocaleString()}원이 들어 있어요.\n숨겨도 이 값은 합계에 그대로 들어갑니다. 숨길까요?`)) return;
+  if (!confirm(`'${name}' 칸을 이 브랜드에서 숨길까요?\n(⋯ 더보기 → '숨긴 매체 다시 보이기'로 되돌릴 수 있어요)`)) return;
+  const hid = rtHidList(); if (!hid.includes(id)) hid.push(id);
+  try { localStorage.setItem(RT_HID_LS(), JSON.stringify(hid)); } catch (e) {}
+  rtHidApply();
+}
+function rtMediaRestore() {
+  try { localStorage.removeItem(RT_HID_LS()); } catch (e) {}
+  rtHidApply(); if (typeof rtToast === 'function') rtToast('숨긴 광고비 매체를 다시 보이게 했습니다', 2000);
+}
+document.addEventListener('click', e => {
+  document.querySelectorAll('.rt-media-x').forEach(x => { if (!x.contains(e.target)) x.remove(); });
+  document.querySelectorAll('.x-on').forEach(x => { if (!x.contains(e.target)) x.classList.remove('x-on'); });
+  const lab = e.target.closest('.input-block .input-group > label');
+  if (lab && /광고비/.test((lab.closest('.input-block').querySelector('.block-label') || {}).textContent || '')) {
+    const inp = lab.parentElement.querySelector('input[id^="inp-"]');
+    if (inp && !lab.parentElement.querySelector('.rt-media-x') && lab.textContent.trim()) {   // ✕는 <label> 밖에(안에 넣으면 라벨 클릭이 ✕로 넘어가 바로 지워짐)
+      const b = document.createElement('button'); b.className = 'rt-media-x'; b.textContent = '✕'; b.title = '이 브랜드에서 숨기기';
+      b.onclick = ev => { ev.preventDefault(); ev.stopPropagation(); const n = lab.textContent.trim(); b.remove(); rtMediaHide(inp.id, n); };
+      lab.insertAdjacentElement('afterend', b);
+    }
+  }
+  const nm = e.target.closest('#custom-ads .channel-name, #custom-sales .channel-name');   // 직접 추가한 칸: 이름 누르면 ✕ 보임
+  if (nm) (nm.closest('.input-group, .channel-row') || nm.parentElement).classList.add('x-on');
+}, true);
+(function () {
+  const ab = window.applyBrand;
+  if (typeof ab === 'function') window.applyBrand = function () { const r = ab.apply(this, arguments); rtHidApply(); return r; };
+  rtHidApply();
 })();
 </script>
 <script src="공유저장.js"></script>
