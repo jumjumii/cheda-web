@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>수집 상태</title>
+<style>
+  :root { --bg:#f7f7f5; --ink:#1f2328; --mute:#6b7280; --line:#e5e7eb; }
+  body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:14px/1.5 system-ui, "Malgun Gothic", sans-serif; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  .sum { margin:6px 0 14px; color:var(--mute); }
+  table { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  th, td { padding:7px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+  th { background:#f3f4f6; font-weight:600; font-size:13px; }
+  tr.g td { background:#fafafa; font-weight:700; font-size:12.5px; color:var(--mute); }
+  tr.bad td { background:#fef2f2; } tr.warn td { background:#fffbeb; }
+  .wrap { overflow-x:auto; }
+  button { border:1px solid var(--line); background:#fff; border-radius:6px; padding:5px 10px; cursor:pointer; font:inherit; }
+</style>
+</head>
+<body>
+<h1>🩺 수집 상태</h1>
+<div class="sum" id="sum">불러오는 중…</div>
+<div class="wrap"><table><thead><tr><th>항목</th><th>마지막 갱신</th><th>기준</th><th>상태</th><th>설명</th></tr></thead><tbody id="tb"></tbody></table></div>
+<p class="sum"><button onclick="run()">↻ 다시 보기</button> PC 점검(쿠키·카페24 토큰·가설 프로그램·클라우드)은 PC가 30분마다 올립니다.</p>
+<script src="health.js"></script>
+<script>
+const ICON = { ok: '🟢', warn: '🟡', bad: '🔴' }, esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+async function run() {
+  document.getElementById('sum').textContent = '불러오는 중…';
+  let L; try { L = await healthCheck(); } catch (e) { document.getElementById('sum').textContent = '불러오기 실패 — ' + e.message; return; }
+  const n = k => L.filter(x => x.lv === k).length;
+  document.getElementById('sum').textContent = `🔴 문제 ${n('bad')}건 · 🟡 주의 ${n('warn')}건 · 🟢 정상 ${n('ok')}건 — ${new Date().toTimeString().slice(0, 5)} 기준`;
+  const ord = { bad: 0, warn: 1, ok: 2 }; let g = '';
+  const gi = {}; L.forEach(x => gi[x.group] ??= Object.keys(gi).length);
+  const rows = L.slice().sort((a, b) => gi[a.group] - gi[b.group] || ord[a.lv] - ord[b.lv]);
+  document.getElementById('tb').innerHTML = rows.map(x => (x.group !== g ? (g = x.group, `<tr class="g"><td colspan="5">${esc(g)}</td></tr>`) : '') +
+    `<tr class="${x.lv}"><td>${esc(x.name)}</td><td>${esc(x.last)}</td><td>${esc(x.rule)}</td><td>${ICON[x.lv]}</td><td>${esc(x.desc)}</td></tr>`).join('');
+}
+run();
+</script>
+</body>
+</html>
