@@ -372,7 +372,7 @@ tr.r-oy{background:#fdf4ff}
 <div id="skip-panel" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;margin-bottom:13px;background:#fffbeb;border:1.5px solid #fcd34d;border-radius:9px;padding:8px 12px;font-size:12px"></div>
 
 <!-- 🗓 엑셀 자동 예약 — 이 날짜엔 밤 무인수집 후 엑셀 입력/캡처까지 자동(withexcel) -->
-<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;margin-bottom:13px;background:#fff7ed;border:1.5px solid #fdba74;border-radius:9px;padding:8px 12px;font-size:12px">
+<div style="display:none;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;margin-bottom:13px;background:#fff7ed;border:1.5px solid #fdba74;border-radius:9px;padding:8px 12px;font-size:12px">
   <span style="font-weight:800;color:#c2410c">🗓 엑셀 자동 예약</span>
   <span style="color:#9a6a3a">이 날짜(리포트 날짜)엔 밤 자동수집 후 <b>엑셀 보내기까지 자동</b>. 내가 없어도 완성됨.</span>
   <input type="date" id="excel-auto-date" style="padding:3px 6px">
@@ -793,7 +793,7 @@ function applyBrandVisibility(){
   if(gdnGoogleDrop) gdnGoogleDrop.style.display=currentBrand==='hattke'?'flex':'none';
   // 브랜드별 수집 버튼 라벨
   const bcBtn=document.getElementById('brand-collect-btn');
-  if(bcBtn) bcBtn.textContent='🔄 '+(({granny:'그래니',hattke:'해트케',basetune:'베이스튠'})[currentBrand]||currentBrand)+'만 수집';
+  if(bcBtn) bcBtn.textContent='🔄 이 브랜드만 수집';
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -7375,6 +7375,35 @@ function abClearHistory(){
     setInterval(render, 2500);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
+})();
+</script>
+<script type="text/plain" class="dl-src">
+// ⋯ 더보기 (2026-10-27 사용자 요청): 자주 안 쓰는 버튼은 접어 둔다. 버튼·기능은 그대로(누르면 다 보임).
+(function(){
+  var KEY='dl_more_open', SEL=["exportAllData(", "document.getElementById('import-file')", "cleanupStorage(", "cleanupOtherTools(", "stopAllCollect(", "oyBackfill(", "document.getElementById('cp-collect-file')", "clearAllSaved("];
+  var css=document.createElement('style');
+  css.textContent='body:not(.more-open) .more-x{display:none!important}'
+    +'.more-tg{font-size:11px;padding:5px 10px;border:1px dashed #9ca3af;border-radius:6px;background:#fff;color:#4b5563;cursor:pointer;margin:2px}';
+  document.head.appendChild(css);
+  try{ if(localStorage.getItem(KEY)==='1') document.body.classList.add('more-open'); }catch(e){}
+  function apply(){
+    document.querySelectorAll('button').forEach(function(b){
+      var oc=b.getAttribute('onclick')||'';
+      if(b.classList.contains('more-x')||!SEL.some(function(s){return oc.indexOf(s)===0;})) return;
+      b.classList.add('more-x');
+      var p=b.parentElement;
+      if(p&&!p.querySelector(':scope > .more-tg')){
+        var t=document.createElement('button'); t.type='button'; t.className='more-tg'; t.textContent='⋯ 더보기';
+        t.onclick=function(){ var o=!document.body.classList.contains('more-open'); document.body.classList.toggle('more-open',o);
+          document.querySelectorAll('.more-tg').forEach(function(x){x.textContent=o?'⋯ 접기':'⋯ 더보기';});
+          try{ localStorage.setItem(KEY,o?'1':''); }catch(e){} };
+        if(document.body.classList.contains('more-open')) t.textContent='⋯ 접기';
+        p.appendChild(t);
+      }
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',apply); else apply();
+  setTimeout(apply,1500); setTimeout(apply,4000);
 })();
 </script>
 <script src="데일리공유.js"></script>

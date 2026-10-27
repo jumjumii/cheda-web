@@ -2510,6 +2510,35 @@ applyBrand(startBrand);   // 브랜드 하이라이트·데이터·표·차트·
 importRtSnapshot(true);
 rtSyncRecent(14);   // 교차검증용 — 최근 2주 기록을 서버 파일로(하루 1번)
 </script>
+<script>
+// ⋯ 더보기 (2026-10-27 사용자 요청): 자주 안 쓰는 버튼은 접어 둔다. 버튼·기능은 그대로(누르면 다 보임).
+(function(){
+  var KEY='rt_more_open', SEL=["collectOne(", "collectBoth(", "collectGoogleSoje(", "rtExport(", "document.getElementById('rt-import-file')", "clearAll()"];
+  var css=document.createElement('style');
+  css.textContent='body:not(.more-open) .more-x{display:none!important}'
+    +'.more-tg{font-size:11px;padding:5px 10px;border:1px dashed #9ca3af;border-radius:6px;background:#fff;color:#4b5563;cursor:pointer;margin:2px}';
+  document.head.appendChild(css);
+  try{ if(localStorage.getItem(KEY)==='1') document.body.classList.add('more-open'); }catch(e){}
+  function apply(){
+    document.querySelectorAll('button').forEach(function(b){
+      var oc=b.getAttribute('onclick')||'';
+      if(b.classList.contains('more-x')||!SEL.some(function(s){return oc.indexOf(s)===0;})) return;
+      b.classList.add('more-x');
+      var p=b.parentElement;
+      if(p&&!p.querySelector(':scope > .more-tg')){
+        var t=document.createElement('button'); t.type='button'; t.className='more-tg'; t.textContent='⋯ 더보기';
+        t.onclick=function(){ var o=!document.body.classList.contains('more-open'); document.body.classList.toggle('more-open',o);
+          document.querySelectorAll('.more-tg').forEach(function(x){x.textContent=o?'⋯ 접기':'⋯ 더보기';});
+          try{ localStorage.setItem(KEY,o?'1':''); }catch(e){} };
+        if(document.body.classList.contains('more-open')) t.textContent='⋯ 접기';
+        p.appendChild(t);
+      }
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',apply); else apply();
+  setTimeout(apply,1500); setTimeout(apply,4000);
+})();
+</script>
 <script src="공유저장.js"></script>
 </body>
 </html>

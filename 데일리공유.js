@@ -375,3 +375,6 @@ dlRtCheck = async function () {
   box.insertAdjacentHTML('beforeend', '<div id="dl-rk"><b>⚠ 쿠팡 로켓 재고와 대조</b>' + out.map(t => `<div class="dl-big">🔴 ${t}</div>`).join('') + '</div>');
   box.style.display = '';
 };
+
+// 웹판에선 팀 시트로 자동 반영되므로 '🌙 밤 수집 불러오기'는 숨김(2026-10-27)
+(function(){ var c=document.createElement("style"); c.textContent="button[onclick^=\"autoMergeSnapshot\"]{display:none!important}"; document.head.appendChild(c); })();

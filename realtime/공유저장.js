@@ -86,3 +86,6 @@ async function dbConfig() {
 }
 dbConfig().then(dbPull);
 setInterval(dbPull, 5 * 60 * 1000);   // 5분마다 팀원 저장분 반영
+
+// 웹판에선 팀 시트로 자동 반영되므로 '🌙 자동수집 불러오기'는 숨김(2026-10-27)
+(function(){ var c=document.createElement("style"); c.textContent="button[onclick^=\"importRtSnapshot\"]{display:none!important}"; document.head.appendChild(c); })();
