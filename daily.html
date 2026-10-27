@@ -753,7 +753,8 @@ function switchBrand(brand){
   loadBsCost();          // 새 브랜드 BS 비용 로드
   // ★전환한 브랜드의 그 날짜 저장본을 바로 폼에 올림(2026-07-14).
   //   ① 날짜탭을 다시 안 눌러도 값이 보임 ② 빈 폼으로 수집→저장해서 그날치를 날리는 사고 방지.
-  ensureDateLoaded();
+  // ★2026-10-27 저장본이 없어도 날짜를 다시 고른 것처럼 그 날짜 행을 만들어 둔다(브랜드 옮긴 뒤 날짜 재선택 불필요)
+  if(!ensureDateLoaded() && typeof onDateRangeChange==='function') onDateRangeChange();
   rememberLastView();
 }
 
@@ -986,6 +987,7 @@ function onDateRangeChange(){
 // 플랫폼 카드 빌드
 function buildGrid() {
   const grid = document.getElementById('platform-grid');
+  grid.innerHTML = '';   // ★2026-10-27 두 번 불려도 카드가 두 벌 쌓이지 않게(웹판 첫 화면에서 브랜드 복원과 겹쳐 중복됐음)
   Object.entries(PLATFORMS).forEach(([key, cfg]) => {
     const accept = key==='gfa' ? '.zip' : '.xlsx,.xls,.csv';
     const multiAttr = cfg.multi ? 'multiple' : '';
