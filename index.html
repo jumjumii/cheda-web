@@ -75,7 +75,7 @@ function show(reload) {
   const k = PAGES[location.hash.slice(1)] ? location.hash.slice(1) : 'realtime';
   document.querySelectorAll('nav a').forEach(a => a.classList.toggle('on', a.hash === '#' + k));
   const f = document.getElementById('view');
-  if (reload || !f.src.endsWith(PAGES[k])) f.src = PAGES[k];
+  if (reload || !f.src.split('?')[0].endsWith(PAGES[k])) f.src = PAGES[k] + '?v=' + Date.now();   // 매번 최신 화면(브라우저 옛 사본 방지)
 }
 addEventListener('hashchange', () => opened() && show());
 opened() ? show() : askPw();
