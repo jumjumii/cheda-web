@@ -402,3 +402,17 @@ window.dlFlush = async function (date) {
   if (ks.length) await dlPut(ks.flatMap(dlRowsOf));
   return ks.length;
 };
+
+// ── 🧹 저장공간 자동 정리(2026-10-28) — 브라우저 저장공간(약 5MB)이 차면 마지막 브랜드 저장이 조용히 실패한다
+//   (10/28 무인 수집: 해트케만 저장 실패). 제일 큰 건 주문·환불·옵션 '누적 사본'(해트케 주문만 195만 자)인데,
+//   날짜별 저장분에서 다시 만들어지는 사본이라 최근 DL_DAYS일만 남겨도 잃는 게 없다. 열 때마다 조용히.
+(function () {
+  const since = dlSince();
+  ['ht_rd_', 'gs_rd_', 'bt_rd_'].forEach(pfx => ['csv_ho_order', 'csv_ho_refund', 'csv_granny_opt'].forEach(name => {
+    const k = pfx + name; let arr;
+    try { arr = JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return; }
+    if (!Array.isArray(arr)) return;
+    const kept = arr.filter(r => { const m = String((r && r[0]) || '').match(/(\d{4})[-.\/](\d{2})[-.\/](\d{2})/); return !m || m.slice(1).join('-') >= since; });
+    if (kept.length !== arr.length) try { _lsSet.call(localStorage, k, JSON.stringify(kept)); } catch (e) {}
+  }));
+})();
