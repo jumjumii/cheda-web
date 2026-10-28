@@ -73,13 +73,13 @@ async function dlPull(quiet) {
     const k = localStorage.key(i), m = k && k.match(DL_KEY);
     if (m && m[2] >= dlSince() && !(k in sheet)) up.push(k);
   }
-  if (up.length) { try { await dlPut(up.flatMap(dlRowsOf)); } catch (e) {} }
+  if (up.length) { try { await dlPut(up.flatMap(k => dlRowsOf(k))); } catch (e) {} }
   dlBadge('팀 저장분 반영 ' + new Date().toTimeString().slice(0, 5), true);
   return changed;
 }
-function dlRowsOf(k) {
+function dlRowsOf(k, raw) {
   const m = k.match(DL_KEY), brand = Object.keys(DL_PFX).find(b => DL_PFX[b] === m[1] + '_rd_');
-  let v = null; try { v = JSON.parse(localStorage.getItem(k)); } catch (e) {}
+  let v = null; try { v = JSON.parse(raw === undefined ? localStorage.getItem(k) : raw); } catch (e) {}
   return dlSplit('in', v).map(p => ({ brand, date: m[2], kind: 'daily', media: p.media, value: p.value }));
 }
 const dlQ = new Set(); let dlT = 0;
@@ -87,14 +87,38 @@ function dlQueue(k) {
   dlQ.add(k); clearTimeout(dlT);
   dlT = setTimeout(async () => {
     const ks = [...dlQ]; dlQ.clear();
-    try { await dlPut(ks.flatMap(dlRowsOf)); dlBadge('시트에 저장됨 ' + new Date().toTimeString().slice(0, 5), true); }
-    catch (e) { dlBadge('시트 저장 실패 — ' + e.message, false); }
+    try { await dlPut(ks.flatMap(k => dlRowsOf(k))); dlBadge('시트에 저장됨 ' + new Date().toTimeString().slice(0, 5), true); }
+    catch (e) { window.__dlSaveFail.push(...ks); dlBadge('‼ 시트 저장 실패 — ' + e.message, false); try { showToast('‼ 시트 저장 실패 — 다시 저장하세요: ' + e.message); } catch (x) {} }
   }, 1500);
 }
 // 원본의 날짜별 저장은 전부 localStorage.setItem(INKEY(날짜))을 지난다 → 거기서 잡는다.
+// ★2026-10-28 저장 실패를 조용히 넘기지 않는다(10/28 해트케: 브라우저 저장공간이 차서 수집값이 통째로 사라짐).
+//   ① 자리 만들고 다시 ② 그래도 안 되면 이 브라우저는 건너뛰고 시트(원본)에 바로 ③ 시트까지 실패하면 빨간 경고 + __dlSaveFail
+window.__dlSaveFail = [];
+function dlFreeSpace() {     // 날짜별 저장분에서 다시 만들어지는 누적 사본만 비운다(잃는 것 없음)
+  ['ht_rd_', 'gs_rd_', 'bt_rd_'].forEach(p => ['csv_ho_order', 'csv_ho_refund', 'csv_granny_opt'].forEach(n => localStorage.removeItem(p + n)));
+}
+async function dlDirect(k, raw) {
+  const d = k.match(DL_KEY)[2];
+  try {
+    await dlPut(dlRowsOf(k, raw));
+    dlBadge('⚠ 브라우저 저장공간 부족 — ' + d + ' 값은 시트에만 저장됨', false);
+  } catch (e) {
+    window.__dlSaveFail.push(k);
+    dlBadge('‼ ' + d + ' 저장 실패(브라우저·시트 모두) — 지금 값을 엑셀로 보내거나 다시 저장하세요: ' + e.message, false);
+    try { showToast('‼ ' + d + ' 저장 실패 — 브라우저 저장공간 부족 + 시트 저장 실패. 화면 값을 지우지 말고 다시 저장하세요.'); } catch (x) {}
+  }
+}
 Storage.prototype.setItem = function (k, v) {
-  _lsSet.call(this, k, v);
-  if (this === localStorage && DL_KEY.test(k)) dlQueue(k);
+  const dl = this === localStorage && DL_KEY.test(k);
+  try { _lsSet.call(this, k, v); }
+  catch (e) {
+    if (!dl) throw e;
+    dlFreeSpace();
+    try { _lsSet.call(this, k, v); }
+    catch (e2) { dlDirect(k, v); return; }
+  }
+  if (dl) dlQueue(k);
   if (this === localStorage && AB_KEY.test(k)) abQueue(k);
 };
 
@@ -399,8 +423,11 @@ window.dlMissing = async function (date) {
 };
 window.dlFlush = async function (date) {
   const ks = Object.values(DL_PFX).map(p => p + 'in_' + date).filter(k => localStorage.getItem(k) != null);
-  if (ks.length) await dlPut(ks.flatMap(dlRowsOf));
-  return ks.length;
+  if (ks.length) await dlPut(ks.flatMap(k => dlRowsOf(k)));   // 실패하면 throw → 무인자동이 ‼로 기록
+  // 확인은 브라우저가 아니라 시트를 다시 읽어서 — 시트에 실제로 그 날짜 값이 든 브랜드
+  const rows = (await dbCall({ action: 'get', from: date, to: date })).rows.filter(r => r.kind === 'daily');
+  const sheet = [...new Set(dlJoin(rows).filter(r => r.value && DL_PFX[r.brand]).map(r => r.brand))];
+  return { sheet, fail: window.__dlSaveFail };
 };
 
 // ── 🧹 저장공간 자동 정리(2026-10-28) — 브라우저 저장공간(약 5MB)이 차면 마지막 브랜드 저장이 조용히 실패한다
