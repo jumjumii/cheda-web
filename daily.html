@@ -1703,8 +1703,8 @@ function processHattkeGoogleText(text){
     }
 
     const gnum=v=>{const s=String(v==null?'':v).replace(/"/g,'').replace(/,/g,'').trim(); if(s===''||s==='--')return 0; const n=parseFloat(s); return isNaN(n)?0:n;};
-    const tok=/(?:^|[^a-z])(ac|pb|pi)(?:[^a-z]|$)/i;
-    const agg={ac:{cost:0,conv:0,val:0,n:0},pb:{cost:0,conv:0,val:0,n:0},pi:{cost:0,conv:0,val:0,n:0},cv:{cost:0,conv:0,val:0,n:0}};
+    const tok=/(?:^|[^a-z])(ac|pb|pi|wp)(?:[^a-z]|$)/i;   // ★2026-10-28 wp=휘핑차렵
+    const agg={ac:{cost:0,conv:0,val:0,n:0},pb:{cost:0,conv:0,val:0,n:0},pi:{cost:0,conv:0,val:0,n:0},wp:{cost:0,conv:0,val:0,n:0},cv:{cost:0,conv:0,val:0,n:0}};
     const unmatched=[];
     for(let i=hi+1;i<lines.length;i++){
       if(!lines[i].trim()) continue;
@@ -1726,12 +1726,13 @@ function processHattkeGoogleText(text){
     const r2=v=>Math.round(v*100)/100;
     const MAP={ac:'아크넨',pb:'압력이불',pi:'베개'};   // ★2026-07-21 pb 라벨 '이불'→'압력이불'
     Object.keys(MAP).forEach(k=>fillGdnRow(reportDate,MAP[k],r2(agg[k].cost),r2(agg[k].conv),r2(agg[k].val)));
+    if(agg.wp.n) fillGdnRow(reportDate,'휘핑차렵',r2(agg.wp.cost),r2(agg.wp.conv),r2(agg.wp.val));   // 엑셀 RD 라벨 '휘핑차렵'
     if(agg.cv.n) fillGdnRow(reportDate,'압력커버',r2(agg.cv.cost),r2(agg.cv.conv),r2(agg.cv.val));   // 커버 캠페인 있을 때만 행 추가
     fmtNumfmtAll();
 
     if(dz) dz.classList.add('loaded');
-    let msg=`✅ 구글 ${reportDate} 반영\n아크넨 ${agg.ac.n}건 · 압력이불 ${agg.pb.n}건 · 베개 ${agg.pi.n}건${agg.cv.n?` · 압력커버 ${agg.cv.n}건`:''}`;
-    if(unmatched.length) msg+=`\n⚠ 미분류 ${unmatched.length}건(ac/pb/pi 없음): ${unmatched.slice(0,3).join(', ')}${unmatched.length>3?' …':''}`;
+    let msg=`✅ 구글 ${reportDate} 반영\n아크넨 ${agg.ac.n}건 · 압력이불 ${agg.pb.n}건 · 베개 ${agg.pi.n}건${agg.wp.n?` · 휘핑차렵 ${agg.wp.n}건`:''}${agg.cv.n?` · 압력커버 ${agg.cv.n}건`:''}`;
+    if(unmatched.length) msg+=`\n⚠ 미분류 ${unmatched.length}건(ac/pb/pi/wp 없음): ${unmatched.slice(0,3).join(', ')}${unmatched.length>3?' …':''}`;
     showToast(msg);
   }catch(e){
     console.error(e);
