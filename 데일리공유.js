@@ -327,7 +327,10 @@ async function dlRtCheck() {
       const brand = NOBRAND.includes(medium) ? '-' : (q.get('brand') || 'granny'), base = medium + '|' + since + '|' + until;
       let v = null;
       try {
-        const rows = (await dbCall({ action: 'get', brand, from: until, to: until })).rows.filter(r => r.kind === 'col' && String(r.media).startsWith(base + '#'));
+        // ★2026-10-28 그 날짜가 끝나기 전에 올린 값(그날 낮 실시간 수집의 반쪽 값)은 쓰지 않는다 — col_sheet.get과 같은 규칙
+        //   (10/27 해트케 카카오: 10/27 15:55에 올라간 반나절 값이 10/27 하루 값으로 들어감)
+        const rows = (await dbCall({ action: 'get', brand, from: until, to: until })).rows.filter(r => r.kind === 'col' && String(r.media).startsWith(base + '#'))
+          .filter(r => r.at && dlYmd(new Date(r.at)) > until);
         v = (dlJoin(rows).find(r => r.base === base) || {}).value || null;
       } catch (x) {}
       const body = v || { error: '수집 서버(PC)가 꺼져 있고, 클라우드 수집값도 없습니다(' + medium + ' ' + since + (since !== until ? '~' + until : '') + '). PC에서 수집하거나 단일 날짜로 다시 시도하세요.' };
