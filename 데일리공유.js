@@ -378,3 +378,24 @@ dlRtCheck = async function () {
 
 // 웹판에선 팀 시트로 자동 반영되므로 '🌙 밤 수집 불러오기'는 숨김(2026-10-27)
 (function(){ var c=document.createElement("style"); c.textContent="button[onclick^=\"autoMergeSnapshot\"]{display:none!important}"; document.head.appendChild(c); })();
+
+// ── 🤖 빠진 매체만 채우기(2026-10-28) — 클라우드(cloud_fill.py)·PC 무인자동.py가 같이 쓴다.
+//   dlMissing: 팀 저장분을 받아 그 날짜를 폼에 올리고, 값이 없는 '브랜드·매체' 목록을 돌려준다(→ autoCollectPass에 그대로).
+//   dlFlush: 그 날짜 저장분을 시트에 바로 올린다(1.5초 지연 저장을 기다리지 않음 — 창 닫기 전에 호출).
+window.dlMissing = async function (date) {
+  await dlPull(true);
+  document.getElementById('dateFrom').value = date; document.getElementById('dateTo').value = date;
+  onDateRangeChange();
+  const miss = [];
+  for (const ph of COLLECT_PHASES) {
+    if (currentBrand !== ph.brand) { switchBrand(ph.brand); await new Promise(r => setTimeout(r, 400)); }
+    ensureDateLoaded();
+    ph.steps.forEach(([nm]) => { if (!_collectHasData(nm)) miss.push(ph.name + '·' + nm); });
+  }
+  return miss;
+};
+window.dlFlush = async function (date) {
+  const ks = Object.values(DL_PFX).map(p => p + 'in_' + date).filter(k => localStorage.getItem(k) != null);
+  if (ks.length) await dlPut(ks.flatMap(dlRowsOf));
+  return ks.length;
+};
