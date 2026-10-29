@@ -1153,10 +1153,20 @@ function resetSummary() {
 }
 
 // ──── 저장 ────
+// ★2026-10-29 오늘 아직 안 온 시간대로 저장 금지 — 10/29 오전 10시에 16시 버튼이 눌린 채 3브랜드 수집 → '16시' 기록이 생김.
+//   12시 = 11시부터, 16시 = 15시부터(자동수집 11:10·15:10 통과). 오늘 날짜 '최종'도 금지(하루가 안 끝남).
+function rtSlotBad(date, time) {
+  if (date !== today()) return date > today() ? `${date} 는 아직 오지 않은 날짜입니다.` : '';
+  const h = new Date().getHours();
+  if (time === '0') return '오늘 날짜는 "최종"으로 저장할 수 없습니다(하루가 아직 안 끝남).';
+  return h < +time - 1 ? `지금은 ${h}시 — 아직 ${time}시 기록을 만들 때가 아닙니다. 시간대 버튼을 확인하세요.` : '';
+}
 function saveRecord(opts) {
   const date = document.getElementById('inp-date').value;
   const time = getSelectedTime();
   if (!date) { alert('날짜를 선택해주세요.'); return; }
+  const bad = rtSlotBad(date, time);
+  if (bad) { rtToast('⚠ 저장 안 함 — ' + bad, 10000); return; }
 
   const rec = {
     id: Date.now(), date, time,
@@ -1692,6 +1702,7 @@ async function collectOne(kind, btn) {     // 개별 수집
 async function collectToday(btn) {         // 전체 수집 (매체별 진행상황 표시)
   const cfg = RT_COLLECT[currentBrand];
   const date = today(); document.getElementById('inp-date').value = date;
+  if (rtSlotBad(date, getSelectedTime())) { rtToast('⚠ 수집 안 함 — ' + rtSlotBad(date, getSelectedTime()), 10000); return; }
   const o = btn.textContent; btn.disabled = true; btn.textContent = '수집 중…';
   const kinds = rtKinds(cfg);
   const results = [];
@@ -1777,6 +1788,7 @@ async function collectBothCore(time, opts) {
 // [둘 다 수집] 버튼용 (선택한 시간대 기준)
 async function collectBoth(btn) {
   const time = getSelectedTime();
+  if (time !== '0' && rtSlotBad(today(), time)) { rtToast('⚠ 수집 안 함 — ' + rtSlotBad(today(), time), 10000); return; }
   const o = btn.textContent; btn.disabled = true; btn.textContent = '3브랜드 수집 중…';
   const res = await collectBothCore(time);
   btn.disabled = false; btn.textContent = o;
