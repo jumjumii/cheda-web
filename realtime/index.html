@@ -695,7 +695,7 @@ function applyBrand(brandKey) {
   document.getElementById('header-brand').textContent = BRANDS[currentBrand].label + ' 실시간 리포트';
 
   loadBrandData();
-  clearInputs();
+  rtShowSlot();
   resetSummary();
   renderTable();
   renderChart();
@@ -745,7 +745,11 @@ function selectTime(btn) {
   } else {
     document.getElementById('inp-date').value = today();
   }
+  rtShowSlot();
 }
+document.getElementById('inp-date').addEventListener('change', () => rtShowSlot());
+// ★2026-10-29 처음 열 때 시간대 = 지금 시각에 맞게(15시부터 16시)
+if (new Date().getHours() >= 15) document.querySelectorAll('.time-btn').forEach(b => b.classList.toggle('active', b.dataset.t === '16'));
 
 function getSelectedTime() {
   return document.querySelector('.time-btn.active')?.dataset.t || '12';
@@ -2451,7 +2455,19 @@ function editRecord(id) {
   document.getElementById('inp-date').value = r.date;
   document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
   document.querySelector(`.time-btn[data-t="${r.time}"]`).classList.add('active');
+  rtFillForm(r);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 
+// ★2026-10-29 브랜드·날짜·시간대를 고르면 그 기록의 상세 값을 입력 칸에 바로 보여 줌(없으면 빈 칸)
+//   onlyIfEmpty: 팀 기록이 늦게 도착했을 때 — 사람이 이미 친 값은 안 덮음
+function rtShowSlot(onlyIfEmpty) {
+  if (onlyIfEmpty && [...document.querySelectorAll('.input-card input[type=number]')].some(el => el.value !== '' && !el.readOnly)) return;
+  const date = document.getElementById('inp-date').value, time = getSelectedTime();
+  const r = records.find(x => x.date === date && x.time === time);
+  if (r) rtFillForm(r); else if (!onlyIfEmpty) clearInputs();
+}
+function rtFillForm(r) {
   document.getElementById('inp-cafe24-sales').value    = r.cafe24Sales   || '';
   document.getElementById('inp-cafe24-orders').value   = r.cafe24Orders  || '';
   document.getElementById('inp-cafe24-refund').value   = r.cafe24Refund  || '';
@@ -2490,8 +2506,7 @@ function editRecord(id) {
   rtCustomFill(r);
   document.getElementById('inp-memo').value            = r.memo   || '';
   rtFake = (r.fakeBuys || []).slice(); rtGgRender();
-
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (typeof rtUpdCouponMinusAll === 'function') rtUpdCouponMinusAll();
 }
 
 // ──── 화살표 키 입력 이동 ────

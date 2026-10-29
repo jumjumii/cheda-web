@@ -59,6 +59,7 @@ async function dbPull() {
   });
   loadBrandData(); renderTable(); renderChart(); renderDow();
   if (records.length) updateSummary(records[records.length - 1]);
+  if (typeof rtShowSlot === 'function') rtShowSlot(true);   // 팀 기록 도착 → 고른 시간대 상세 값 표시(친 값은 보존)
   dbBadge('팀 기록 반영 ' + new Date().toTimeString().slice(0, 5), true);
   for (let i = 0; i < up.length; i += 200) await dbPush(up.slice(i, i + 200));
 }
