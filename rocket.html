@@ -240,7 +240,7 @@ function renderInb(B) {
         ${L.map(r => `<div class="ir"><div>${esc(r['브랜드'])} / ${esc(short(r))} / ${esc(r['옵션'] || '')}</div>
           <div class="mute">30일 ${fmt((r['30일'] || {})['수량'])} · 7일 ${fmt((r['7일'] || {})['수량'])} · 판매가능 ${fmt(r['판매가능'])} · 입고중 ${fmt(r['입고중'])} → 제안 ${fmt(sugg(r))}${(() => {
             const ro = runout(r), lead = firstDay(acc); return ro !== null && ro < lead ? `<div class="neg">⚠ 약 ${Math.floor(ro)}일 뒤 품절 — 가장 빠른 입고(${lead}일 뒤)보다 먼저 떨어짐</div>` : ''; })()}</div>
-          <div><input type="number" min="0" value="${qty(r)}" onchange="Q['${r.vendorItemId}']=+this.value;delete DT['${acc}'];delete PICK['${acc}'];render()"></div></div>`).join('')}
+          <div><input class="qn" inputmode="numeric" data-v="${r.vendorItemId}" value="${qty(r)}" oninput="qIn(this,'${acc}')"></div></div>`).join('')}
         <div class="btns"><button onclick="inbDates('${acc}')">📅 날짜 조회</button></div>${dates}${inbMent(acc, L, p)}</div>`;
     }).join('') || '<div class="empty">입고가 필요한 상품이 없습니다.</div>');
 }
@@ -289,14 +289,19 @@ function inbMent(acc, L, p) {
     ${ed ? `<button onclick="delete MEDIT['${acc}'];render()">↺ 자동 멘트로</button>` : ''}
     <button onclick="navigator.clipboard.writeText(window['_q_${acc}']);this.textContent='✅ 복사됨'">🔢 수량만 복사(엑셀용)</button></div>`;
 }
-// ★2026-10-29 칸 이동: ↑↓ 는 숫자를 바꾸지 않고 위아래 칸으로(데일리리포트처럼). 수량 변경→다시 그리기 뒤에도 같은 칸 순서로 포커스
+// ★2026-10-29 수량은 치는 즉시 반영(칸을 벗어날 때 다시 그리면 바로 누른 버튼 클릭이 사라졌음) — 다시 그린 뒤 같은 칸·커서로
+function qIn(el, acc) {
+  const v = el.dataset.v, c = el.selectionStart;
+  el.value = el.value.replace(/\D/g, '');
+  Q[v] = +el.value; delete DT[acc]; delete PICK[acc]; render();
+  const n = document.querySelector(`.qn[data-v="${v}"]`); if (n) { n.focus(); n.setSelectionRange(c, c); }
+}
+// ★2026-10-29 칸 이동: ↑↓ 는 숫자를 바꾸지 않고 위아래 칸으로(데일리리포트처럼)
 document.addEventListener('keydown', e => {
   const t = e.target;
-  if ((e.key !== 'ArrowUp' && e.key !== 'ArrowDown') || !t.matches('input[type=number]')) return;
+  if ((e.key !== 'ArrowUp' && e.key !== 'ArrowDown') || !t.matches('.qn')) return;
   e.preventDefault();
-  const i = [...document.querySelectorAll('input[type=number]')].indexOf(t) + (e.key === 'ArrowDown' ? 1 : -1);
-  t.blur();   // change → render() 가 DOM을 새로 그림
-  const all = document.querySelectorAll('input[type=number]'), n = all[Math.max(0, Math.min(all.length - 1, i))];
+  const all = [...document.querySelectorAll('.qn')], n = all[all.indexOf(t) + (e.key === 'ArrowDown' ? 1 : -1)];
   if (n) { n.focus(); n.select(); }
 });
 load();
