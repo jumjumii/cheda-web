@@ -1448,7 +1448,9 @@ async function rtMedium(kind, cfg, date) {
     if (!cfg.cafe24) return '카페24—(미설정)';
     d = await rtJ(`${SUSERVER}/collect?medium=${enc('실시간카페24')}&brand=${cfg.cafe24}&date=${date}`);
     if (!d.error) { set('inp-cafe24-sales', d.sales); set('inp-cafe24-orders', d.orders);
-      return '카페24 ' + (d.sales != null ? d.sales.toLocaleString() : '?') + '/' + (d.orders != null ? d.orders + '건' : '?'); }
+      if (d.refund != null) set('inp-cafe24-refund', d.refund);   // ★2026-10-29 반품 반영(해트케와 같은 결제−환불)
+      return '카페24 ' + (d.sales != null ? d.sales.toLocaleString() : '?') + '/' + (d.orders != null ? d.orders + '건' : '?')
+        + (d.refund != null ? ' 환불 ' + d.refund.toLocaleString() : ''); }
     return '카페24❌' + (d.error || '');
   }
   if (kind === 'coupang') {
