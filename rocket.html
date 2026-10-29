@@ -56,6 +56,7 @@
   .dts button.ok { border-color:var(--ok); } .dts button.mon { border-color:var(--warn); color:var(--warn); }
   .dts button.pick { background:var(--acc); color:#fff; border-color:var(--acc); }
   .dts button:disabled { color:#bbb; cursor:default; text-decoration:line-through; }
+  textarea.ment { width:100%; box-sizing:border-box; font-family:inherit; resize:vertical; display:block; }
   .ment { white-space:pre-wrap; background:#f8fafc; border:1px solid var(--line); border-radius:8px; padding:10px; font-size:12px; }
   .ig .btns button { margin:4px 6px 0 0; padding:5px 10px; border:1px solid var(--line); border-radius:6px; background:#fff; font:inherit; cursor:pointer; }
 </style>
@@ -205,7 +206,7 @@ function hist(r) {   // 최근 30일 스냅샷: 날짜별 판매가능·어제 �
 //   제안 = max(30일 판매, 7일 판매÷7×30) − 판매가능 − 입고중 (0 미만은 0). 칸에서 고칠 수 있음.
 //   출고일 = 우리 창고에 쿠팡 차가 오는 날(밀크런 픽업일 = 센터 도착일과 같은 날). 주말·공휴일은 출고 안 함, 월요일은 가급적 피함.
 let inbMode = false, inbAll = false;
-const Q = {}, DT = {}, PICK = {};
+const Q = {}, DT = {}, PICK = {}, MEDIT = {};
 const SRV = 'http://127.0.0.1:8765';
 const sugg = r => { const s30 = (r['30일'] || {})['수량'] || 0, s7 = (r['7일'] || {})['수량'] || 0;
   return Math.max(0, Math.round(Math.max(s30, s7 / 7 * 30) - (r['판매가능'] || 0) - (r['입고중'] || 0))); };
@@ -280,9 +281,24 @@ function inbMent(acc, L, p) {
     `\n\n\n\n\n\n상기 양식으로 통일 기재 부탁드리며, 내용 수정이 있을경우(제품,수량 등) 출고일 기준 2일 전까지는 수정 및 확정지어주시기 바랍니다.. !`;
   const qt = inbCols(L).map(c => c.join('\t')).join('\n');
   window['_m_' + acc] = t; window['_q_' + acc] = qt;
-  return `<div class="ment">${esc(t)}</div><div class="btns"><button onclick="navigator.clipboard.writeText(window['_m_${acc}']);this.textContent='✅ 복사됨'">📋 멘트 복사</button>
+  // ★2026-10-29 멘트 직접 수정: 고친 글은 계정별로 기억. 수량·날짜가 바뀌면 안내만 하고 덮어쓰지 않음(↺로 자동 멘트 반영)
+  const ed = MEDIT[acc], stale = ed && ed.base !== t;
+  return `<textarea class="ment" rows="${(ed ? ed.text : t).split('\n').length + 1}" id="m_${acc}" oninput="MEDIT['${acc}']={base:window['_m_${acc}'],text:this.value}">${esc(ed ? ed.text : t)}</textarea>
+    ${stale ? '<div class="neg">수량·날짜가 바뀌었어요 — [↺ 자동 멘트로] 를 누르면 반영됩니다(고친 내용은 사라짐)</div>' : ''}
+    <div class="btns"><button onclick="navigator.clipboard.writeText(document.getElementById('m_${acc}').value);this.textContent='✅ 복사됨'">📋 멘트 복사</button>
+    ${ed ? `<button onclick="delete MEDIT['${acc}'];render()">↺ 자동 멘트로</button>` : ''}
     <button onclick="navigator.clipboard.writeText(window['_q_${acc}']);this.textContent='✅ 복사됨'">🔢 수량만 복사(엑셀용)</button></div>`;
 }
+// ★2026-10-29 칸 이동: ↑↓ 는 숫자를 바꾸지 않고 위아래 칸으로(데일리리포트처럼). 수량 변경→다시 그리기 뒤에도 같은 칸 순서로 포커스
+document.addEventListener('keydown', e => {
+  const t = e.target;
+  if ((e.key !== 'ArrowUp' && e.key !== 'ArrowDown') || !t.matches('input[type=number]')) return;
+  e.preventDefault();
+  const i = [...document.querySelectorAll('input[type=number]')].indexOf(t) + (e.key === 'ArrowDown' ? 1 : -1);
+  t.blur();   // change → render() 가 DOM을 새로 그림
+  const all = document.querySelectorAll('input[type=number]'), n = all[Math.max(0, Math.min(all.length - 1, i))];
+  if (n) { n.focus(); n.select(); }
+});
 load();
 </script>
 </body>
