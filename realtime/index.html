@@ -737,12 +737,13 @@ document.getElementById('inp-date').value = today();
 function selectTime(btn) {
   document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  if (btn.dataset.t === '0') {
+  // ★2026-10-29 날짜는 고른 그대로 고정 — 최종(전일)만 '오늘'일 때 어제로
+  if (btn.dataset.t === '0' && document.getElementById('inp-date').value === today()) {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     document.getElementById('inp-date').value =
       `${yesterday.getFullYear()}-${String(yesterday.getMonth()+1).padStart(2,'0')}-${String(yesterday.getDate()).padStart(2,'0')}`;
-  } else {
+  } else if (!document.getElementById('inp-date').value) {
     document.getElementById('inp-date').value = today();
   }
   rtShowSlot();
