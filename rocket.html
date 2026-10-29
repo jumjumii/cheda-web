@@ -264,10 +264,21 @@ async function inbLan(acc, items) {     // 수집 PC 주소는 비공개 시트(
   if (!lan || !lan.url) throw new Error('수집 PC 주소 없음');
   return (await fetch(`${lan.url}/dates?acc=${encodeURIComponent(acc)}&items=${encodeURIComponent(items)}`, { headers: { 'x-cheda-token': c.token } })).json();
 }
-function inbLines(L) { return L.filter(r => qty(r) > 0).map(r => `${r['브랜드']} / ${short(r)} / ${r['옵션'] || ''} / ${qty(r)}개`); }
+// ★2026-10-29 물류팀 양식: 제품명 / 개입수량 / 세트수량 / 개별수량. 개입 = 옵션의 'N개·N박스·N세트·N팩·N입'(없으면 1)
+const PACK = /(\d+)\s*(개입|개|박스|세트|팩|입)/;
+const packN = r => +(((r['옵션'] || '').match(PACK) || [0, 1])[1]);
+function pname(r) {   // 브랜드 + 짧은 상품명 + 옵션(개입 표시·이미 나온 단어 빼고)
+  const head = `${r['브랜드']} ${short(r)}`, seen = new Set(head.split(/\s+/));
+  const opt = (r['옵션'] || '').replace(PACK, ' ').split(/\s+/).filter(w => w && !seen.has(w));
+  return [head, ...opt].join(' ');
+}
+function inbCols(L) { return L.filter(r => qty(r) > 0).map(r => [pname(r), packN(r) + '개입', qty(r) + '세트', qty(r) * packN(r) + 'EA']); }
 function inbMent(acc, L, p) {
-  const t = `[쿠팡_로켓그로스 요청]\n\n안녕하세요 승로님!\n밀크런 입고 확인 요청드립니다\n가능 여부 확인 부탁드리며 작업지시서 부탁드립니다!\n\n\n출고일 : ${p ? md(p.date) : '(날짜 조회 후 선택)'}\n센터 : ${p ? p.fcName : '(날짜 조회 후 선택)'}\n제품/수량\n` + inbLines(L).join('\n');
-  const qt = L.filter(r => qty(r) > 0).map(r => [r['브랜드'], short(r), r['옵션'] || '', qty(r)].join('\t')).join('\n');
+  const t = `[쿠팡_로켓그로스 요청]\n\n안녕하세요 승로님\n밀크런 입고 확인 요청드립니다.\n가능 여부 확인 부탁드리며,\n작업지시서 부탁드립니다!\n\n\n` +
+    `출고일 : ${p ? md(p.date) : '(날짜 조회 후 선택)'}\n센터 : ${p ? p.fcName : '(날짜 조회 후 선택)'}\n제품/수량\n제품명 / 개입수량 / 세트수량 / 개별수량\n` +
+    inbCols(L).map(c => c.join(' / ')).join('\n') +
+    `\n\n\n\n\n\n상기 양식으로 통일 기재 부탁드리며, 내용 수정이 있을경우(제품,수량 등) 출고일 기준 2일 전까지는 수정 및 확정지어주시기 바랍니다.. !`;
+  const qt = inbCols(L).map(c => c.join('\t')).join('\n');
   window['_m_' + acc] = t; window['_q_' + acc] = qt;
   return `<div class="ment">${esc(t)}</div><div class="btns"><button onclick="navigator.clipboard.writeText(window['_m_${acc}']);this.textContent='✅ 복사됨'">📋 멘트 복사</button>
     <button onclick="navigator.clipboard.writeText(window['_q_${acc}']);this.textContent='✅ 복사됨'">🔢 수량만 복사(엑셀용)</button></div>`;
