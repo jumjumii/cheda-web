@@ -2424,9 +2424,15 @@ function buildReportText(r, brandKey) {
 
 // ──── 슬랙 전송 (현재 브랜드 최신 기록) ────
 // 웹훅 URL은 HTML이 아니라 수집서버(slack_config.json)에 보관 → 서버 /slack 경유 전송
+// ★2026-10-29 보고서 = 위에서 고른 날짜·시간대 기록(예전: 가장 최근 기록만)
+function rtPickedRec() {
+  const date = document.getElementById('inp-date').value, time = getSelectedTime();
+  const r = records.find(x => x.date === date && x.time === time);
+  if (!r) rtToast(`${date} ${time === '0' ? '최종' : time + '시'} 기록이 없습니다 — 날짜·시간대를 확인하세요.`, 6000);
+  return r;
+}
 async function sendToSlack() {
-  if (records.length === 0) { rtToast('저장된 데이터가 없습니다.', 5000); return; }
-  const r = records[records.length - 1];
+  const r = rtPickedRec(); if (!r) return;
   const { dateStr, text } = buildReportText(r, currentBrand);
   if (!confirm(`슬랙으로 전송할까요?\n\n[${BRANDS[currentBrand].label}] ${dateStr}\n\n(전송 전 표의 색칠된 값 확인!)`)) return;
   rtToast('📤 슬랙 전송 중…', 0);
@@ -2439,8 +2445,7 @@ async function sendToSlack() {
 
 // ──── 스프레드시트 복사 ────
 function copyToSheet() {
-  if (records.length === 0) { alert('저장된 데이터가 없습니다.'); return; }
-  const r = records[records.length - 1];
+  const r = rtPickedRec(); if (!r) return;
   const { dateStr, text } = buildReportText(r, currentBrand);
   navigator.clipboard.writeText(text)
     .then(() => alert(`${dateStr} 데이터가 복사되었습니다.`))
