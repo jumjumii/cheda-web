@@ -1723,7 +1723,7 @@ async function collectToday(btn) {         // 전체 수집 (매체별 진행상
 // 그래니살라 + 베이스튠 + 해트케 세 브랜드를 순서대로 자동 수집·저장 (공용 코어)
 // time: '12'|'16'|'0' → 반환 {date,time,timeLab,summary,brands:{키:{rec,text,result}}}
 async function collectBothCore(time, opts) {
-  const brands = ['graniesalad', 'basetune', 'hattke', 'salagris'];   // 해트케 = 압력이불만(rtMediumHattke) / 샐러그리스 = 광고비만
+  const brands = (opts && opts.brands) || ['graniesalad', 'basetune', 'hattke', 'salagris'];   // 해트케 = 압력이불만(rtMediumHattke) / ★opts.brands = 일부만(샐러그리스 전일 2026-10-29)
   let date;
   if (time === '0') {                        // 최종 = 어제 (시간버튼 규칙과 동일)
     const y = new Date(); y.setDate(y.getDate() - 1);
@@ -1784,10 +1784,10 @@ async function collectBoth(btn) {
 }
 
 // 자동수집 진입점 — 무인자동_실시간.py가 Playwright로 호출. slot='12'|'16'|'0'
-window.rtAutoCollect = async function (slot) {
+window.rtAutoCollect = async function (slot, brands) {   // brands: ['salagris'] 처럼 일부만(없으면 전체)
   try {
     // skipSoje: 무인 경로에선 in-page 소재 수집을 끄고, 파이썬(무인자동_실시간.py)이 서버로 직접 수집한다.
-    const res = await collectBothCore(String(slot || '12'), { skipSoje: true });
+    const res = await collectBothCore(String(slot || '12'), { skipSoje: true, brands: brands || null });
     return JSON.stringify({ ok: true, ...res });
   } catch (e) {
     return JSON.stringify({ ok: false, error: String((e && e.message) || e) });
@@ -2346,7 +2346,7 @@ function buildReportText(r, brandKey) {
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
   const dow = DOW[d.getDay()];
-  const timeLabel = r.time === '0' ? '최종' : `${r.time}:00`;
+  const timeLabel = r.time === '0' ? (brandKey === 'salagris' ? '전일' : '최종') : `${r.time}:00`;   // ★샐러그리스 최종 = '전일' 리포트(2026-10-29)
   const dateStr   = `${yy}/${mm}/${dd} (${dow}) ${timeLabel}`;
 
   const brandLabel = BRANDS[brandKey].label;
