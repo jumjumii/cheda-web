@@ -185,7 +185,7 @@ function render() {
         </div></div>
       <div class="kv">${sale(r, '어제', '어제')}${sale(r, '7일', '지난 7일')}${sale(r, '30일', '지난 30일')}<span class="l">조회→판매</span><span>7일 ${pct(conv(r, '7일'))}</span><span>30일 ${pct(conv(r, '30일'))}</span></div>
       <div class="stock">판매가능 <b>${fmt(r['판매가능'])}</b>${r['예상일수'] ? `<span class="days ${r['예상일수'] < 14 ? 'low' : ''}">${r['예상일수']}일</span>` : ''}
-        <div class="mute">입고중 ${fmt(r['입고중'])}</div></div>
+        <div class="mute">입고중 ${fmt(r['입고중'])}</div>${(r['입고예정'] || []).map(x => `<div class="mute">↳ ${x['날짜'] ? md(x['날짜']) : '?'} 예정 ${fmt(x['수량'])} · ${x['센터'] || ''}</div>`).join('')}</div>
       <div class="n">${r['가격'] ? fmt(r['가격'] - (r['즉시할인'] || 0)) : '-'}${r['즉시할인'] ? `<div class="mute">판매가 ${fmt(r['가격'])} · 즉시할인 ${fmt(r['즉시할인'])}</div>` : ''}
         <div class="mute">${r['아이템위너'] === true ? '아이템위너' : r['아이템위너'] === false ? '아이템위너 아님' : ''}</div></div>
       <div class="n mute">${r['추천입고'] ? `추천 입고 ${fmt(r['추천입고'])}개${r['추천입고일'] > 0 ? ` (${r['추천입고일']}일 내)` : ''}<br>` : ''}반품(30일) ${fmt(r['반품30일'])}${r['보관료'] ? `<br>보관료 ${fmt(r['보관료'])}원` : ''}</div>
