@@ -53,7 +53,7 @@ async function healthCheck() {
   });
   Object.entries((H.cafe24 && H.cafe24.data) || {}).forEach(([b, v]) =>
     add('카페24 API 토큰', BN[b] || b, fmt(v.at), '항상 유효', v.ok ? 'ok' : 'bad', v.ok ? '' : (v.note || '토큰 무효') + ' — 관리자 재동의 필요'));
-  Object.entries((H.hyp && H.hyp.data) || {}).forEach(([f, t]) =>
+  Object.entries((H.hyp && H.hyp.data) || {}).filter(([f]) => !/옛utm/.test(f)).forEach(([f, t]) =>   // 옛utm = 옛 UTM 시트에서 한 번 뽑은 고정 자료(갱신 안 함)
     add('가설 프로그램 데이터', f.replace('브랜드자료/', ''), fmt(t), '2일 안', ageH(t) < 48 ? 'ok' : 'bad', ageH(t) < 48 ? '' : '2일 넘게 갱신 안 됨'));
   Object.entries((H.cloud && H.cloud.data) || {}).filter(([w]) => /daily-collect|keepalive/.test(w)).forEach(([w, v]) => {
     const lim = /daily/.test(w) ? 30 : 6, a = ageH(v.at);

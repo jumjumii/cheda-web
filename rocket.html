@@ -112,8 +112,8 @@ function derive(prev) {   // 어제 급감 + 원인(품절·아이템위너·가
   rows.forEach(r => {
     const a = avg(r), y = (r['어제'] || {})['수량'], o = P[r.vendorItemId];
     r._pc = o && netp(o) && netp(r) && netp(o) !== netp(r) ? [netp(o), netp(r)] : null;
-    r._drop = a >= 1 && y != null && y < a * 0.5 ? (r['판매가능'] === 0 || r['상태'] === '품절' ? '품절' : r['아이템위너'] === false ? '아이템위너 아님'
-      : r._pc ? `가격변동 ${fmt(r._pc[0])}→${fmt(r._pc[1])}` : '원인 미상') : '';
+    r._drop = a >= 1 && y != null && y < a * 0.5 ? (r['판매가능'] === 0 || r['상태'] === '품절' ? '품절 때문' : r['아이템위너'] === false ? '아이템위너 뺏김'
+      : r._pc ? `가격 바뀜 ${fmt(r._pc[0])}→${fmt(r._pc[1])}` : '재고·위너·가격은 정상 → 광고·경쟁 확인') : '';
   });
 }
 
@@ -149,7 +149,7 @@ const ACTS = [
   ['품절', r => r['상태'] === '품절', true],
   ['품절 임박', r => r['상태'] === '품절임박', true],
   [`${LEAD}일 안 품절 예상`, r => runout(r) !== null && runout(r) < LEAD, true],
-  ['어제 판매 급감', r => !!r._drop, true],
+  ['어제 판매 절반 미만', r => !!r._drop, true],
   ['아이템위너 아님', r => r['아이템위너'] === false && ((r['30일'] || {})['매출'] || 0) > 0, true],
   ['예상 14일 미만', r => r['판매가능'] > 0 && r['예상일수'] > 0 && r['예상일수'] < 14, false],
   ['과잉 재고', r => r['상태'] === '과잉재고', false],
@@ -181,7 +181,7 @@ function render() {
       <div class="prod">${r['이미지'] ? `<img src="${r['이미지']}" alt="" loading="lazy">` : '<img alt="">'}
         <div><div class="nm">${r['상품']}, ${r['옵션'] || ''}</div>
           <div class="mute">${r['계정']} · ${r['vendorItemId']}</div>
-          <span class="tag">${r['브랜드']}</span>${(r['등급'] || 'NEW') !== 'NEW' ? `<span class="tag used">${GRADE[r['등급']] || r['등급']}</span>` : ''}${r['승인상태'] ? `<span class="tag">${r['승인상태']}</span>` : ''}${r['판매중지'] ? '<span class="tag used">판매중지</span>' : ''}${r._drop ? `<span class="tag used">⚠ 어제 급감 · ${r._drop}</span>` : ''}${runout(r) !== null && runout(r) < LEAD ? `<span class="tag used">⚠ 약 ${Math.floor(runout(r))}일 뒤 품절</span>` : ''}
+          <span class="tag">${r['브랜드']}</span>${(r['등급'] || 'NEW') !== 'NEW' ? `<span class="tag used">${GRADE[r['등급']] || r['등급']}</span>` : ''}${r['승인상태'] ? `<span class="tag">${r['승인상태']}</span>` : ''}${r['판매중지'] ? '<span class="tag used">판매중지</span>' : ''}${r._drop ? `<span class="tag used">⚠ 어제 판매 평소 절반 미만 · ${r._drop}</span>` : ''}${runout(r) !== null && runout(r) < LEAD ? `<span class="tag used">⚠ 약 ${Math.floor(runout(r))}일 뒤 품절</span>` : ''}
         </div></div>
       <div class="kv">${sale(r, '어제', '어제')}${sale(r, '7일', '지난 7일')}${sale(r, '30일', '지난 30일')}<span class="l">조회→판매</span><span>7일 ${pct(conv(r, '7일'))}</span><span>30일 ${pct(conv(r, '30일'))}</span></div>
       <div class="stock">판매가능 <b>${fmt(r['판매가능'])}</b>${r['예상일수'] ? `<span class="days ${r['예상일수'] < 14 ? 'low' : ''}">${r['예상일수']}일</span>` : ''}
