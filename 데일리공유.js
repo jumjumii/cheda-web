@@ -276,7 +276,10 @@ async function dlRtCheck() {
   //   이제 설정은 이 브라우저에 기억해 두고 바로 화면을 띄운 뒤, 팀 저장분은 뒤에서 받아 바뀐 게 있으면 날짜 탭만 다시 그린다.
   let sec = null; try { sec = JSON.parse(localStorage.getItem('dl_cfg_cache') || 'null'); } catch (e) {}
   const cfgP = dbCall({ action: 'get', brand: '설정', from: '2000-01-01', to: '2000-01-01' })
-    .then(j => { const r = j.rows.find(x => x.kind === 'dlcfg'); const v = (r && r.value) || {}; _lsSet.call(localStorage, 'dl_cfg_cache', JSON.stringify(v)); return v; })
+    .then(j => { const r = j.rows.find(x => x.kind === 'dlcfg'); const v = (r && r.value) || {}; _lsSet.call(localStorage, 'dl_cfg_cache', JSON.stringify(v));
+      const mp = j.rows.find(x => x.kind === 'dlmap' && x.media === 'hattke');   // 해트케 매핑(PC 수집서버 대신) → 상품별 엑셀 양식
+      if (mp && mp.value) { _lsSet.call(localStorage, 'mapcache_ht', JSON.stringify(mp.value)); window.__hattkeMap = null; }
+      return v; })
     .catch(e => { dlBadge('설정 불러오기 실패 — ' + e.message, false); return null; });
   if (!sec) { dlBadge('처음 한 번 설정 불러오는 중…', true); sec = (await cfgP) || {}; }
   const pullP = Promise.all([dlPull(true), abPull()]);

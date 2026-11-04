@@ -3852,7 +3852,12 @@ const MEDIA_MAP={ SPC:['DA','SPC'], TK:['DA','TIKTOK'], admin:['Admin','Cafe24']
   criteo:['DA','Criteo'], fb:['SNS','Facebook'], gdn:['DA','GDN'], naverbs:['BS','NaverBS'],
   navergfa:['DA','NaverGFA'], kakaobiz:['DA','kakaoDA'], naversa:['SA','NaverSA'], navershopping:['SA','NaverShopping'],
   oliveyoung:['OY','OliveYoung'], ss:['ss','Smartstore'] };
-const MEDIA_GROUP_ORDER=['SA','DA','SNS','BS','CP','ss','OY'];   // 매체별 표 구분 순서(Admin=자사몰 제외)
+const MEDIA_GROUP_ORDER=['SA','DA','SNS','BS','CP','ss','OY'];
+// 매체명 순서 = 해트케 10월 워크북 피벗4 항목 순서(엑셀은 알파벳이 아니라 이 순서로 보여줌). 목록에 없는 매체는 뒤에 알파벳순.
+const MEDIA_ITEM_ORDER=['Facebook','NaverDA','direct','NaverSA','Cafe24','Organic_naver','Referral_naver','Referral_crema','NaverShopping',
+  'NaverBS','kakaoDA','GDN','Dable','TIKTOK','coupang','SPC','Smartstore','paid','NaverGFA'];
+const _mediaItemCmp=(a,b)=>{ const ia=MEDIA_ITEM_ORDER.indexOf(a), ib=MEDIA_ITEM_ORDER.indexOf(b);
+  return (ia<0?999:ia)-(ib<0?999:ib) || (a<b?-1:a>b?1:0); };   // 매체별 표 구분 순서(Admin=자사몰 제외)
 // 해트케 제품 분류(매핑 규칙) — 주문상품명/campaign 공용. 워크북 mapping 시트 로직:
 //   베개/pi→더마텍소베개, 이불/압력/pb→압력이불, 차렵→차렵이불, 아크넨/ac/패드→아크넨패드, 그외 기본=아크넨패드
 // ★2026-09-17 '휘핑차렵' 추가(쿠팡 출시). 이 배열이 리포트 상품별 줄을 만든다.
@@ -3887,7 +3892,7 @@ function _mediaTableFromRows(rows){
   const 매체별=[]; let tC=0,tB=0,tR=0;
   const groups=[...MEDIA_GROUP_ORDER.filter(g=>gAgg[g]), ...Object.keys(gAgg).filter(g=>!MEDIA_GROUP_ORDER.includes(g))];
   groups.forEach(g=>{ const a=gAgg[g]; tC+=a[0]; tB+=a[1]; tR+=a[2];
-    const subs=Object.keys(wAgg[g]).sort().map(w=>({ 매체명:w, ..._mediaMetrics(...wAgg[g][w]) }));
+    const subs=Object.keys(wAgg[g]).sort(_mediaItemCmp).map(w=>({ 매체명:w, ..._mediaMetrics(...wAgg[g][w]) }));
     매체별.push({ 구분:g, ..._mediaMetrics(...a), 하위:subs }); });
   return { 매체별, 매체별총합:_mediaMetrics(tC,tB,tR) };
 }
@@ -3998,6 +4003,67 @@ function computeHattkeReport(date){
   };
 }
 
+// ═══ 해트케 상품별 = 워크북 RD_성과(fx) 그대로 (2026-11-03) ═══
+//   ★검증: 10월 워크북 원본행 입력 → RD_성과(fx) 31일 중 26일 칸마다 일치, 나머지 5일은 워크북 RD_환불 V열 수식 오류
+//     (압력커버 환불을 AE=휘핑 열로 봐서 안 빠짐) 차이뿐. 11/01 생성기 데이터 → 엑셀과 전 칸 일치.
+// 해트케 워크북(RD_성과(fx)) 계산 — 엑셀 수식을 그대로 옮김. 입력=buildMultiDatePayload 블록(엑셀로 보내는 것과 같은 행).
+//   RD.U(상품구분) = campaign에 pb/압력→압력이불, wp/휘핑→휘핑차렵, cr/차렵→차렵이불, pi/베개→더마텍소베개, 그외 아크넨패드 (이 순서)
+//   RD_판매/환불 M·카운트 = VLOOKUP(B&C, mapping!T:AF) 정확일치·대소문자무시·첫 행
+//   RD_market J..O = C..H × (1−수수료), 카페24행 C..H = Σ판매E(M=상품) − Σ환불E
+//   RD_성과(fx): 구매=Σ판매[상품카운트열](M=상품)−환불, 광고비=ΣRD.E(U=상품), 매출=ΣRD_market[상품열]
+const HT_WB_PRODUCTS=[   // [RD_성과 이름, 매핑 카운트 키, RD_market 열 index(C=0)]
+  ['아크넨패드','ac',0],['더마텍소베개','pi',1],['압력이불','pb',2],['차렵이불','cr',3],['휘핑차렵','wp',4],['압력커버','cv',5]];
+function _htWbU(campaign){
+  const s=String(campaign==null?'':campaign).toLowerCase();
+  if(/pb|압력/.test(s)) return '압력이불';
+  if(/wp|휘핑/.test(s)) return '휘핑차렵';
+  if(/cr|차렵/.test(s)) return '차렵이불';
+  if(/pi|베개/.test(s)) return '더마텍소베개';
+  return '아크넨패드';
+}
+function _xlSerialToYmd(v){
+  const s=String(v).trim();
+  if(/^\d{5}(\.\d+)?$/.test(s)){ const d=new Date(Date.UTC(1899,11,30)+Math.floor(Number(s))*86400000); return d.toISOString().slice(0,10); }
+  return ymd(s.slice(0,10));
+}
+// codes = 매핑 {코드: {p, ac,pi,pb,cr,wp,cv}} (window.__hattkeMap.codes). 이모지·대소문자 무시하고 맞춤(엑셀 VLOOKUP은 대소문자 무시).
+function computeHattkeWorkbook(blocks, codes, fee){
+  fee=fee||MARKET_FEE;
+  const idx={}; let staleMap=false;
+  Object.keys(codes||{}).forEach(k=>{ const kk=_stripEmoji(k).toLowerCase(); if(!(kk in idx)) idx[kk]=codes[k]; if(codes[k].cv===undefined) staleMap=true; });
+  const tsvOf=sh=>{ const b=blocks.find(x=>x.sheet===sh); return b&&b.tsv? b.tsv.split('\n').filter(l=>l.trim()).map(l=>l.split('\t')) : []; };
+  const days={}, unmapped={};
+  const D=d=>days[d]||(days[d]={ad:{},buy:{},rev:{}});
+  // 광고비
+  tsvOf('RD').forEach(r=>{ const d=_xlSerialToYmd(r[0]); const p=_htWbU(r[3]); const o=D(d); o.ad[p]=(o.ad[p]||0)+_num(r[4]); });
+  // 판매/환불 → 구매 카운트 + 카페24 제품별 금액
+  const c24={};   // date → {상품: 금액}
+  [['RD_판매',1],['RD_환불',-1]].forEach(([sh,sg])=>tsvOf(sh).forEach(r=>{
+    const d=_xlSerialToYmd(r[0]); const code=String(r[1]||'')+String(r[2]||'');
+    const m=idx[_stripEmoji(code).toLowerCase()];
+    if(!m){ unmapped[code]={name:r[1]||'', namefull:r[2]||'', sheet:sh, date:d}; return; }
+    const q=_num(r[3]), o=D(d);
+    HT_WB_PRODUCTS.forEach(([pn,k])=>{ if(m.p===pn) o.buy[pn]=(o.buy[pn]||0)+sg*(Number(m[k])||0)*q; });
+    const cc=c24[d]||(c24[d]={}); cc[m.p]=(cc[m.p]||0)+sg*_num(r[4]);
+  }));
+  // RD_market (카페24 행은 수식이라 위 c24로 대체)
+  const badMarket=[];
+  tsvOf('RD_market').forEach(r=>{
+    const d=_xlSerialToYmd(r[0]), mk=String(r[1]||'').trim(); if(mk==='카페24') return;
+    const f=fee[mk]; if(f==null){ badMarket.push(mk); return; }
+    const o=D(d); HT_WB_PRODUCTS.forEach(([pn,,ci])=>{ o.rev[pn]=(o.rev[pn]||0)+_num(r[2+ci])*(1-f); });
+  });
+  Object.keys(c24).forEach(d=>{ const o=D(d); HT_WB_PRODUCTS.forEach(([pn])=>{ o.rev[pn]=(o.rev[pn]||0)+(c24[d][pn]||0)*(1-fee['카페24']); }); });
+  // 날짜별 RD_성과 행
+  const rows=Object.keys(days).sort().map(d=>{
+    const o=days[d], prod={}; let B=0,C=0,Dv=0;
+    HT_WB_PRODUCTS.forEach(([pn])=>{ const b=o.buy[pn]||0, a=pn==='압력커버'?0:(o.ad[pn]||0), v=o.rev[pn]||0;   // 엑셀 AA=U="압력커버" → RD.U가 압력커버를 안 만드니 늘 0
+      prod[pn]={구매:b, 광고비:a, 매출:v, ROAS:a? v/a:0}; B+=b; C+=a; Dv+=v; });
+    return {date:d, 전체:{구매:B, 광고비:C, 매출:Dv, ROAS:C? Dv/C:0}, prod};
+  });
+  return {rows, unmapped:Object.values(unmapped), badMarket:[...new Set(badMarket)], staleMap};
+}
+
 // ───────────────────────────────────────────────
 // 📊 리포트 렌더 + 이미지 내보내기 (엑셀 피벗·캡처 대체, 슬랙용)
 // ───────────────────────────────────────────────
@@ -4043,16 +4109,28 @@ function computeCollectedPivot(brand, monthStr){
   undoPaused=true;
   const reps=[];
   dates.forEach(d=>{ if(loadDateIntoForm(d, true)!==false){ ensureRows(); const rp=reportFor(brand,d); if(rp) reps.push(rp); } });
+  // 해트케: 엑셀로 보내는 행(buildMultiDatePayload) 그대로 워크북 RD_성과(fx) 계산 → 상품별 표
+  const wb = brand==='hattke' ? hattkeWbLocal(monthStr) : null;
   if(orig && localStorage.getItem(prefix+orig)) loadDateIntoForm(orig, true);
   undoPaused=false;
   if(!reps.length) return null;
   const {월합, 월총}=_aggProducts(reps);
   return {brand, month:monthStr, dates:reps, total_cells:_sumOverallCells(reps),
-          상품별월합:월합, 상품별월총:월총, months:[...monthsSet].sort(), _source:'collected'};
+          상품별월합:월합, 상품별월총:월총, months:[...monthsSet].sort(), _source:'collected', wb};
 }
 
+// 해트케 상품별(RD_성과(fx)) — 생성기에 저장된 그 달 데이터로 계산. 폼은 원래 날짜로 복원.
+function hattkeWbLocal(monthStr){
+  const prefix=getLSPrefix()+'in_', dates=[];
+  for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&k.startsWith(prefix)&&k.slice(prefix.length,prefix.length+7)===monthStr) dates.push(k.slice(prefix.length)); }
+  if(!dates.length) return null;
+  dates.sort();
+  const orig=getTo(), wasPaused=undoPaused; undoPaused=true;
+  try{ return computeHattkeWorkbook(buildMultiDatePayload(dates).blocks, (window.__hattkeMap||{}).codes||{}); }
+  finally{ if(orig && localStorage.getItem(prefix+orig)) loadDateIntoForm(orig, true); undoPaused=wasPaused; }
+}
 // ═══ 인라인 리포트 피벗 ═══
-let __rpData=null, __rpBrand=null, __rpSelDate=null, __rpSource='workbook';   // 기본=워크북(전체 완전), 06-30 비교는 📥수집데이터 토글
+let __rpData=null, __rpBrand=null, __rpSelDate=null, __rpSource='collected';   // 기본=워크북(전체 완전), 06-30 비교는 📥수집데이터 토글
 function setReportSource(s){ __rpSource=s; reloadReportPivot(); }
 // 이모지/astral 특수기호 제거 — 엑셀 Ctrl+V가 이모지(🔥⚠️)를 ??로 깨는 것 방지 + 매핑 안정화
 //   (상품명 이모지가 바뀌어도 매칭 유지). ™®등 BMP기호는 엑셀에서 정상이라 유지.
@@ -4167,6 +4245,7 @@ async function reloadReportPivot(dateOverride){
     const d=await res.json();
     if(d.error){ document.getElementById('rp-body').innerHTML=`<div style="padding:16px">${sourceToggleHTML()}<div style="color:#c0392b;margin-top:10px">⚠ ${d.error}</div></div>`; return; }
     if(!d.dates||!d.dates.length){ document.getElementById('rp-body').innerHTML='<div style="color:#888;padding:16px">이 달 데이터가 없습니다.</div>'; return; }
+    if(brand==='hattke'){ await ensureHattkeMap(date); try{ d.wb=hattkeWbLocal(monthStr); }catch(e){ console.warn('hattkeWb',e); } }   // 상품별은 워크북 모드에서도 엑셀 양식
     setSel(d);
   }catch(e){
     document.getElementById('rp-body').innerHTML='<div style="color:#c0392b;padding:16px">⚠ 수집서버 미연결 — "데일리리포트.bat"을 켜세요.</div>';
@@ -4197,6 +4276,8 @@ function renderReportPivot(){
         ${d.months.map(m=>`<option value="${m}"${m===d.month?' selected':''}>${m}</option>`).join('')}
       </select></div>`;
   }
+  html+=excelViewHTML(d);
+  html+=`<details style="margin-top:16px"><summary style="cursor:pointer;color:#888;font-size:12px">이전 보기(날짜별 표·상세)</summary>`;
   html+=`<div class="rep-tt">1. 전체 성과 (날짜별 피벗 — 행 클릭해 상세)</div>`;
   html+=`<div style="overflow:auto;max-height:340px;border:1px solid #e5e9f2;border-radius:8px"><table class="rep-tbl" style="margin:0"><thead><tr>`
     +['날짜',...cells0.map(c=>c.label)].map(c=>`<th style="position:sticky;top:0">${c}</th>`).join('')+`</tr></thead><tbody>`;
@@ -4224,7 +4305,44 @@ function renderReportPivot(){
         <button onclick="copyProductPNG()" style="padding:5px 11px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px">🖼 상품별 이미지 복사</button>
         <button onclick="saveProductPNG()" style="padding:5px 11px;background:#5b21b6;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px">⬇ 상품별 PNG</button>
       </span></div>`+productPivotHTML(d)+`</div>`;
+  html+=`</details>`;
   document.getElementById('rp-body').innerHTML=html;
+}
+// ═══ 📗 엑셀 양식 보기 — 슬랙에 올리던 엑셀 캡처 3장과 같은 모양. 화면=이미지(같은 HTML). ═══
+const XL_PIECES=[['overall','3_전체성과'],['media','2_매체별성과'],['product','1_상품별성과']];   // 화면·슬랙은 전체→매체별→상품별, 파일명은 기존 캡처 이름 유지
+function xlPieceHTML(k){
+  const v=window.__xlView; if(!v) return '';
+  if(k==='product') return (v.brand==='hattke' && v.d.wb)? hattkeProductHtmlEx(v.d.wb, v.d.month) : productHtmlEx(productReportModel(v.d), v.brand);
+  if(k==='media') return mediaHtmlEx(v.rep, v.d.dates.map(x=>x.date));
+  return overallHtmlEx(v.rep, v.rep.date);
+}
+function excelViewHTML(d){
+  const rep=d.dates.find(x=>x.date===__rpSelDate) || d.dates[d.dates.length-1];
+  window.__xlView={d, rep, brand:__rpBrand};
+  const wb=d.wb;
+  let warn='';
+  if(wb && wb.unmapped.length) warn+=`<div>⚠ 매핑에 없는 주문상품명 ${wb.unmapped.length}건 — 상품별 구매·매출에서 빠짐(엑셀이면 #N/A). 매핑 시트에 추가하세요: ${wb.unmapped.slice(0,3).map(u=>_esc(u.name)).join(' / ')}${wb.unmapped.length>3?' …':''}</div>`;
+  if(wb && wb.staleMap) warn+=`<div>⚠ 매핑 캐시가 옛 형식(압력커버·휘핑·차렵 수량 없음) — 수집서버 켜고 🔄 새로고침하면 맞춰집니다.</div>`;
+  if(wb && wb.badMarket.length) warn+=`<div>⚠ 수수료 모르는 판매처: ${wb.badMarket.map(_esc).join(', ')} — 매출에서 빠짐</div>`;
+  if(__rpBrand==='hattke' && !wb) warn+=`<div style="color:#555">ℹ 이 달 생성기에 저장된 데이터가 없어 상품별을 엑셀 양식으로 계산하지 못했어요.</div>`;
+  const btn=(k,f)=>`<button onclick="xlImg('${k}','copy')" style="padding:4px 10px;background:#4f6ef7;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px">🖼 복사</button>
+    <button onclick="xlImg('${k}','save')" style="padding:4px 10px;background:#2d8a4e;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px">⬇ PNG</button>
+    <span style="font-size:12px;color:#666">${f}</span>`;
+  let h=`<div class="rep-tt" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">📗 엑셀 양식 <span style="font-size:12px;color:#888;font-weight:400">슬랙 캡처와 같은 모양 · 매체별·전체성과 날짜:</span>
+    <select onchange="selectReportDate(this.value)" style="padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px;font-weight:700">${d.dates.map(x=>`<option value="${x.date}"${x.date===rep.date?' selected':''}>${x.date}</option>`).join('')}</select></div>`;
+  if(warn) h+=`<div style="margin:6px 0 10px;padding:8px 10px;border:1px solid #f59e0b;background:#fffbeb;border-radius:6px;font-size:12px;color:#b45309">${warn}</div>`;
+  h+=XLCSS;
+  XL_PIECES.forEach(([k,f])=>{ h+=`<div style="margin:12px 0 4px;display:flex;gap:6px;align-items:center">${btn(k, f+(k==='media'?'_'+rep.date:''))}${k==='product'?'<span style="font-size:11px;color:#b45309">↔ 가로로 길어요 — 표 아래 스크롤바로 오른쪽 끝(차렵이불)까지 보세요. 이미지에는 전부 들어가요.</span>':''}</div>
+    <div style="overflow-x:auto;border:1px solid #e5e9f2;border-radius:6px;background:#fff"><div class="xlw">${xlPieceHTML(k)}</div></div>`; });
+  return h;
+}
+async function xlImg(k, mode){
+  const v=window.__xlView; if(!v){ showToast('리포트를 먼저 여세요.'); return; }
+  const cv=await _pivotImg(xlPieceHTML(k)); if(!cv){ showToast('이미지 만들기 실패'); return; }
+  const f=XL_PIECES.find(p=>p[0]===k)[1]+(k==='media'?'_'+v.rep.date:'');
+  if(mode==='save'){ const a=document.createElement('a'); a.download=f+'.png'; a.href=cv.toDataURL('image/png'); a.click(); showToast('⬇ '+f+'.png 저장됨'); return; }
+  cv.toBlob(async b=>{ try{ await navigator.clipboard.write([new ClipboardItem({'image/png':b})]); showToast('🖼 '+f+' 복사됨 — 슬랙에 Ctrl+V'); }
+    catch(e){ showToast('복사 실패 — PNG 저장을 쓰세요.'); } },'image/png');
 }
 // 제품 그룹 색(세로 열 배경 구분). 전체=index0.
 const GROUP_TINTS=['#eef2ff','#eff6ff','#fff7ed','#f0fdf4','#fdf4ff','#fefce8'];
@@ -4444,34 +4562,63 @@ function _xlDrawTable(x, spec, x0, y, W){
 }
 // ═══ 엑셀 피벗 스타일 HTML → 이미지 (맑은고딕·정확색·셀넘침없음) ═══
 const XLCSS=`<style>
-.xlw{display:inline-block;background:#fff;padding:4px;font-family:'Malgun Gothic','맑은 고딕',sans-serif}
-.xlw h3{font-size:13px;font-weight:700;margin:0 0 6px 1px;color:#000}
-.xlw h3.mt{margin-top:14px}
+.xlw{display:inline-block;background:#fff;padding:6px;font-family:'Malgun Gothic','맑은 고딕',sans-serif;color:#000;text-align:left}
+.xlw h3{font-size:13px;font-weight:700;margin:0 0 10px 1px;color:#000}
 .xlt{border-collapse:collapse;font-size:11px;width:auto;min-width:0}
-.xlt td{border:1px solid #4472C4;padding:0 6px;white-space:nowrap;line-height:14px;background:#fff;color:#305496;text-align:right}
+.xlt td{padding:0 7px;white-space:nowrap;line-height:19px;text-align:right;color:#305496;background:#fff;border:none;border-bottom:1px solid #D9E1F2}
+.xlt.pv{border:1px solid #4472C4}
+.xlt td.h{color:#000;font-weight:700;border-bottom:1px solid #4472C4}
+.xlt td.hl{color:#000;font-weight:700;text-align:center;border-bottom:1px solid #4472C4}
+.xlt td.l{text-align:left}
+.xlt td.s{text-align:left;padding-left:24px}
+.xlt tr.g td{background:#D9E1F2;color:#000;font-weight:700;border-bottom:1px solid #fff}
+.xlt tr.t td{color:#000;font-weight:700;border-top:1px solid #4472C4;border-bottom:none}
+.xlt td.cafe{background:#B4C6E7;color:#1F3864;text-align:center;border:none}
+.xlt td.blank{border:none;background:transparent}
+.xlt.ov tr:not(.bd) td:first-child{border-left:1px solid #4472C4}
+.xlt.ov tr:not(.bd) td:last-child{border-right:1px solid #4472C4}
+.xlt.ov tr.ht td{border-top:1px solid #4472C4}
+.xlt.ov tr.t td{border-bottom:1px solid #4472C4}
+.xlt .fb{display:inline-block;width:11px;height:11px;line-height:9px;border:1px solid #A6A6A6;font-size:8px;color:#595959;text-align:center;vertical-align:middle;margin-left:10px;font-weight:400}
+.xpb{border-collapse:collapse;font-size:11px;width:auto;min-width:0}
+.xpb td{padding:0 8px;white-space:nowrap;line-height:19px;border:1px solid #1F3864}
+.xpb td.n{background:#305496;color:#fff;font-weight:700;text-align:left;border-bottom:none}
+.xpb td.k{background:#C6E0B4;color:#375623;font-weight:700;text-align:center}
+.xpb td.v{background:#305496;color:#fff;font-weight:700;text-align:right}
+.xpb td.r{color:#F4B084}
+.xpb td.gl{border-left:2px solid #1F3864}
+.xpf{border-collapse:collapse;font-size:11px;margin:16px 0 14px 0}
+.xpf td{color:#305496;padding:0 6px 0 0;line-height:20px;border-bottom:1px solid #D9E1F2;white-space:nowrap}
+.xlt.hp td{overflow:hidden;text-overflow:clip}
+.xlt.hp td.h{text-align:center}
+.xlt.hp td.hl{padding:0 1px;text-align:left}
+.xlt.hp td.hl .fb{margin-left:1px}
+.xlt.hp td:first-child{padding:0 3px}
+.xlt.hp tr.ht td{border-bottom:1px solid #4472C4}
+.xpb td.x0{border:none;background:transparent}
+.xpb td{overflow:hidden}
+.xpf td{overflow:hidden;padding:0 2px;border:none}
+.xpf td:first-child{padding:0 1px}
+.fb.fr{float:right;margin:4px 2px 0 0;line-height:9px;padding-top:1px}
+.xwrap{border-collapse:collapse;width:auto;min-width:0}.xwrap>tbody>tr>td{vertical-align:top;padding:0;border:none;max-width:none;overflow:visible}
+.xsl{box-sizing:border-box;width:200px;border:1px solid #A6A6A6;background:#fff;padding:0 10px 8px;font-size:12px}
+.xsh{display:flex;justify-content:space-between;align-items:center;height:34px;border-bottom:1px solid #4472C4;margin-bottom:6px;font-size:13px}
+.xsi{box-sizing:border-box;border:1px solid #D9D9D9;border-radius:3px;padding:4px 8px;margin-bottom:4px;color:#000;cursor:pointer}
+.xsi.on{background:#B4C6E7;border-color:#8EA9DB}
+.xsi.em{color:#A6A6A6;cursor:default}
 .xlt.xls{border:1px solid #4472C4}
-.xlt.xls td{border:none;border-bottom:1px solid #D6E0F0}
 .xlt.xld{border:1px solid #5B9BD5}
-.xlt.xld td{border:none;border-bottom:1px solid #D6E0F0;background:#fff}
 .xlt.xld td.hdl,.xlt.xld td.lbl{border-right:1px solid #5B9BD5}
 .xlt.xld td.hd{background:#DDEBF7;color:#1F3864;border-bottom:2px solid #5B9BD5}
 .xlt.xld td.hdl{border-bottom:2px solid #5B9BD5}
 .xlt td.roasv{color:#1F3864}
 .xlt td.band{background:#305496;color:#fff;font-weight:700;text-align:center}
 .xlt td.band2{background:#5B9BD5;color:#fff;font-weight:700;text-align:center}
-.xlt td.cafe{background:#B4C6E7;color:#000;font-weight:700;text-align:center}
 .xlt td.hd{background:#fff;color:#000;font-weight:700;text-align:center}
 .xlt td.hdg{background:#C6E0B4;color:#375623;font-weight:700;text-align:center}
 .xlt td.sumv{background:#305496;color:#fff;font-weight:700;text-align:right}
 .xlt td.hdl{background:#fff;color:#000;font-weight:700;text-align:left;vertical-align:middle}
 .xlt td.lbl{text-align:left}
-.xlt td.grp{background:#D9E1F2;font-weight:700;color:#000;text-align:left}
-.xlt td.grpv{background:#D9E1F2;font-weight:700;color:#000}
-.xlt td.sub{color:#2F75B5;text-align:left;padding-left:22px}
-.xlt td.subv{color:#2F75B5}
-.xlt td.grn{background:#C6E0B4;font-weight:700;color:#1F3864}
-.xlt tr.tot td{font-weight:700;color:#000}
-.xlt td.blank{border:none;background:#fff}
 </style>`;
 async function _pivotImg(innerHtml){
   const holder=document.createElement('div'); holder.style.cssText='position:fixed;left:-99999px;top:0';
@@ -4479,9 +4626,9 @@ async function _pivotImg(innerHtml){
   document.body.appendChild(holder);
   const el=holder.querySelector('.xlw'); const base=el.getBoundingClientRect();
   let mr=0, mb=0;   // 실제 표/제목의 최대 오른쪽·아래 끝으로 타이트하게 크롭
-  el.querySelectorAll('table,h3').forEach(k=>{ const kr=k.getBoundingClientRect(); if(kr.right-base.left>mr)mr=kr.right-base.left; if(kr.bottom-base.top>mb)mb=kr.bottom-base.top; });
+  el.querySelectorAll('table,h3,.xsl').forEach(k=>{ const kr=k.getBoundingClientRect(); if(kr.right-base.left>mr)mr=kr.right-base.left; if(kr.bottom-base.top>mb)mb=kr.bottom-base.top; });
   const w=Math.ceil(mr+4)+2, h=Math.ceil(mb+4)+2;
-  const inner=holder.innerHTML; document.body.removeChild(holder);
+  const xs=new XMLSerializer(), inner=[...holder.childNodes].map(n=>xs.serializeToString(n)).join(''); document.body.removeChild(holder);   // XHTML로(<col> 같은 빈 요소도 SVG에서 깨지지 않게)
   const svg="<svg xmlns='http://www.w3.org/2000/svg' width='"+w+"' height='"+h+"'><foreignObject x='0' y='0' width='"+w+"' height='"+h+"'><div xmlns='http://www.w3.org/1999/xhtml'>"+inner+"</div></foreignObject></svg>";
   const img=new Image();
   try{ await new Promise((ok,er)=>{ img.onload=ok; img.onerror=()=>er(new Error('svg')); img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg); }); }
@@ -4490,28 +4637,83 @@ async function _pivotImg(innerHtml){
   const c=cv.getContext('2d'); c.scale(s,s); c.fillStyle='#fff'; c.fillRect(0,0,w,h); c.drawImage(img,0,0);
   return cv;
 }
+const XL_FUN='<svg width="8" height="8" viewBox="0 0 8 8"><path d="M0 0h8L5 3.6V8L3 6.8V3.6z" fill="#595959"/></svg>';
+const XL_MS='<svg width="14" height="12" viewBox="0 0 14 12" style="margin-right:8px"><path d="M1 2l1.2 1.2L4.5 1M1 6l1.2 1.2L4.5 5M1 10l1.2 1.2L4.5 9M7 2h7M7 6h7M7 10h7" stroke="#595959" fill="none"/></svg>';
+const XL_CLR='<svg width="14" height="12" viewBox="0 0 14 12"><path d="M0 0h9L6 4v6L4 9V4z" fill="none" stroke="#595959"/><path d="M8 6l5 5M13 6l-5 5" stroke="#C00000" stroke-width="1.4"/></svg>';
 function _dz(v){ const n=Number(v)||0; return n===0?'-':_fmt(n); }
 function _roasI(v){ const n=Number(v)||0; return n===0?'0%':Math.round(n*100)+'%'; }
 function _esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
 // 전체성과 + 매체별 → 엑셀 HTML
-function reportHtmlEx(rep, date){
+// 엑셀 피벗 표시 규칙: 합계 필드(Cost·구매)는 값 없으면 빈칸, 계산 필드는 0이면 '-', ROAS는 0%.
+const _xb=v=>{ const n=Number(v)||0; return n===0?'':_fmt(n); };
+// 1. 전체 성과(피벗2) — 엑셀 '1. 전체 성과' 캡처와 같은 모양
+function overallHtmlEx(rep, date){
   const oc=rep.전체성과.cells;
   const ocf=c=>{ const v=Number(c.val)||0; if(c.label==='ROAS')return _roasI(v); return v===0?'-':_cellfmt(c); };
+  const lab=c=>c.label==='cafe24_구매값'?'cafe24_구매 값':c.label;
   let bi=oc.findIndex(c=>c.label==='회원가입'); if(bi<0) bi=oc.findIndex(c=>c.label==='DAU'); if(bi<0) bi=0;
-  let h='<h3>1. 전체 성과</h3><table style="width:max-content;min-width:0" class="xlt"><tbody><tr><td class="blank"></td>';
+  let h='<h3>1. 전체 성과</h3><table class="xlt ov"><tbody><tr class="bd"><td class="blank"></td>';
   for(let i=0;i<bi;i++) h+='<td class="blank"></td>';
   h+='<td class="cafe" colspan="'+(oc.length-bi)+'">Cafe24</td></tr>';
-  h+='<tr><td class="hdl">행 레이블</td>'+oc.map(c=>'<td class="hd">'+_esc(c.label)+'</td>').join('')+'</tr>';
-  h+='<tr><td class="lbl">'+_esc(date)+'</td>'+oc.map(c=>'<td>'+ocf(c)+'</td>').join('')+'</tr>';
-  h+='<tr class="tot"><td class="lbl">총합계</td>'+oc.map(c=>'<td>'+ocf(c)+'</td>').join('')+'</tr></tbody></table>';
-  h+='<h3 class="mt">2. 매체별 성과</h3><table style="width:max-content;min-width:0" class="xlt"><tbody>';
-  h+='<tr><td class="hdl">행 레이블</td><td class="hd">Cost</td><td class="hd">매체_구매</td><td class="hd">매체_매출</td><td class="hd">매체_객단가</td><td class="hd">매체_CPA</td><td class="hd">매체_ROAS</td></tr>';
+  h+='<tr class="ht"><td class="hl">행 레이블<span class="fb">'+XL_FUN+'</span></td>'+oc.map(c=>'<td class="h">'+_esc(lab(c))+'</td>').join('')+'</tr>';
+  h+='<tr><td class="l">'+_esc(date)+'</td>'+oc.map(c=>'<td>'+ocf(c)+'</td>').join('')+'</tr>';
+  h+='<tr class="t"><td class="l">총합계</td>'+oc.map(c=>'<td>'+ocf(c)+'</td>').join('')+'</tr></tbody></table>';
+  return h;
+}
+// 2. 매체별 성과(피벗4)
+function mediaHtmlEx(rep, dates){
+  const row=(cls,lbl,m)=>'<tr'+(cls?' class="'+cls+'"':'')+'>'+lbl+'<td>'+_xb(m.Cost)+'</td><td>'+_xb(m.구매)+'</td><td>'+_dz(m.매출)+'</td><td>'+_dz(m.객단가)+'</td><td>'+_dz(m.CPA)+'</td><td>'+_roasI(m.ROAS)+'</td></tr>';
+  let h='<h3>2. 매체별 성과</h3><table class="xlt pv"><tbody>';
+  h+='<tr><td class="hl">행 레이블<span class="fb">'+XL_FUN+'</span></td><td class="h">Cost</td><td class="h">매체_구매</td><td class="h">매체_매출</td><td class="h">매체_객단가</td><td class="h">매체_CPA</td><td class="h">매체_ROAS</td></tr>';
   rep.매체별.forEach(g=>{
-    h+='<tr><td class="grp">⊟ '+_esc(g.구분)+'</td><td class="grpv">'+_dz(g.Cost)+'</td><td class="grpv">'+_dz(g.구매)+'</td><td class="grpv">'+_dz(g.매출)+'</td><td class="grpv">'+_dz(g.객단가)+'</td><td class="grpv">'+_dz(g.CPA)+'</td><td class="grpv">'+_roasI(g.ROAS)+'</td></tr>';
-    (g.하위||[]).forEach(s=>{ h+='<tr><td class="sub">'+_esc(s.매체명)+'</td><td class="subv">'+_dz(s.Cost)+'</td><td class="subv">'+_dz(s.구매)+'</td><td class="subv">'+_dz(s.매출)+'</td><td class="subv">'+_dz(s.객단가)+'</td><td class="subv">'+_dz(s.CPA)+'</td><td class="subv">'+_roasI(s.ROAS)+'</td></tr>'; });
+    h+=row('g','<td class="l">⊟ '+_esc(g.구분)+'</td>',g);
+    (g.하위||[]).forEach(sb=>{ h+=row('','<td class="s">'+_esc(sb.매체명)+'</td>',sb); });
   });
-  const T=rep.매체별총합;
-  h+='<tr class="tot"><td class="lbl">총합계</td><td>'+_dz(T.Cost)+'</td><td>'+_dz(T.구매)+'</td><td>'+_dz(T.매출)+'</td><td>'+_dz(T.객단가)+'</td><td>'+_dz(T.CPA)+'</td><td>'+_roasI(T.ROAS)+'</td></tr></tbody></table>';
+  h+=row('t','<td class="l">총합계</td>',rep.매체별총합)+'</tbody></table>';
+  if(!dates || !dates.length) return h;
+  // 슬라이서: 7칸 보이는 창, 고른 날짜가 보이게
+  const items=[...dates,'(비어 있음)'], si=dates.indexOf(rep.date), st=Math.max(0, Math.min(si-3, items.length-7));
+  const sl='<div class="xsl"><div class="xsh"><b>'+_esc(rep.date)+'</b><span>'+XL_MS+XL_CLR+'</span></div>'
+    +items.slice(st,st+7).map(x=>'<div class="xsi'+(x===rep.date?' on':'')+(x[0]==='('?' em':'')+'"'+(x[0]==='('?'':' onclick="selectReportDate(\''+x+'\')"')+'>'+_esc(x)+'</div>').join('')+'</div>';
+  return '<table class="xwrap"><tbody><tr><td>'+h+'</td><td style="padding:46px 0 0 22px">'+sl+'</td></tr></tbody></table>';
+}
+function reportHtmlEx(rep, date){ return overallHtmlEx(rep,date)+'<div style="height:14px"></div>'+mediaHtmlEx(rep); }
+// 3. 해트케 상품별(피벗3) — RD_성과(fx) 그대로. 위 요약밴드(월 합) + year/mon + 일별 피벗.
+const HT_PV_BAND=[   // [밴드 이름, 상품키('전체'=합), 열들]  열: a=광고비 b=구매 v=매출 r=ROAS
+  ['해트케','전체',['a','b','v','r'],['총 광고비','총 구매','총 매출','ROAS']],
+  ['압력이불','압력이불',['a','b','v','r'],['총 광고비','총 판매건수','총 매출','ROAS']],
+  ['압력이불커버','압력커버',['b','v'],['총 판매건수','총 매출']],
+  ['휘핑차렵이불','휘핑차렵',['a','b','v','r'],['총 광고비','총 판매건수','총 매출','ROAS']],
+  ['아크넨패드','아크넨패드',['a','b','v','r'],['총 광고비','총 판매건수','총 매출','ROAS']],
+  ['더마텍소 베개','더마텍소베개',['b','v'],['총 판매건수','총 매출']],
+  ['더마텍소 차렵이불','차렵이불',['b','v'],['총 판매건수','총 매출']]];
+const HT_PV_HEAD={전체:['전체 광고비','총구매','전체 매출','전체 ROAS'], 압력이불:['압력이불광고비','압력이불 구매','압력이불매출','압력이불ROAS'],
+  압력커버:[null,'압력이불커버.','압력이불커버 매출.'], 휘핑차렵:['휘핑차렵 광고비','휘핑차렵구매','휘핑차렵매출','휘핑차렵 ROAS'],
+  아크넨패드:['아크넨패드 광고비','아크넨 패드 구매','아크넨패드 매출','아크넨패드 ROAS'], 더마텍소베개:[null,'더마텍소베개 구매','더마텍소베개 매출'],
+  차렵이불:[null,'차렵이불구매','차렵이불매출']};
+// 엑셀 'Report_전일 성과' X..AT 열 너비(문자 단위) → px. 밴드·year/mon·피벗이 같은 열을 공유.
+const HT_XW=[4.375,15,9.75,18.25,12.375,15.5,14.125,16.625,15,15.125,18.875,18.5,15.125,15.125,16.5,19,16.875,16.875,18.5,18.25,19,19.875,15.125].map(w=>Math.round(w*6.3));
+const HT_XW_SUM=HT_XW.reduce((a,b)=>a+b,0);
+const HT_XCG='<colgroup>'+HT_XW.map(w=>'<col style="width:'+w+'px">').join('')+'</colgroup>';
+const _pv0=v=>{ const n=Number(v)||0; if(n===0) return '-'; return Math.round(n).toLocaleString('ko-KR'); };
+function hattkeProductHtmlEx(wb, month){
+  const KI={a:0,b:1,v:2,r:3}, KF={a:'광고비',b:'구매',v:'매출'};
+  const get=(row,key)=> key==='전체'? row.전체 : row.prod[key];
+  const tot={}; HT_PV_BAND.forEach(([,key])=>{ const t={광고비:0,구매:0,매출:0}; wb.rows.forEach(r=>{ const x=get(r,key); t.광고비+=x.광고비; t.구매+=x.구매; t.매출+=x.매출; }); t.ROAS=t.광고비? t.매출/t.광고비:0; tot[key]=t; });
+  const fv=(x,c)=> c==='r'? (x.ROAS? Math.round(x.ROAS*100)+'%':'-') : _pv0(x[KF[c]]);
+  const x0='<td class="x0"></td>';
+  let h='<table class="xpb" style="table-layout:fixed;width:'+HT_XW_SUM+'px">'+HT_XCG+'<tbody><tr>'+x0+HT_PV_BAND.map(([n,,cols],i)=>'<td class="n'+(i?' gl':'')+'" colspan="'+cols.length+'">'+_esc(n)+'</td>').join('')+'</tr>';
+  h+='<tr>'+x0+HT_PV_BAND.map(([,,cols,labs],i)=>labs.map((l,j)=>'<td class="k'+(i&&!j?' gl':'')+'">'+l+'</td>').join('')).join('')+'</tr>';
+  h+='<tr>'+x0+HT_PV_BAND.map(([,key,cols],i)=>cols.map((c,j)=>'<td class="v'+(c==='r'?' r':'')+(i&&!j?' gl':'')+'">'+fv(tot[key],c)+'</td>').join('')).join('')+'</tr></tbody></table>';
+  const ym=String(month||'').split('-'); const yy=ym[0], mm=ym[1];
+  const tb=c=>'<table class="'+c+'" style="table-layout:fixed;width:'+HT_XW_SUM+'px">'+HT_XCG+'<tbody>';
+  h+=tb('xpf')+'<tr><td>year</td><td>'+_esc(yy||'')+'<span class="fb fr">'+XL_FUN+'</span></td><td colspan="21"></td></tr>'
+    +'<tr><td>mon</td><td>'+_esc(String(Number(mm)||''))+'<span class="fb fr">'+XL_FUN+'</span></td><td colspan="21"></td></tr></tbody></table>';
+  const order=['전체','압력이불','압력커버','휘핑차렵','아크넨패드','더마텍소베개','차렵이불'];
+  const cols=[]; order.forEach(k=>HT_PV_HEAD[k].forEach((lab,i)=>{ if(lab) cols.push([k,'abvr'[i],lab]); }));
+  h+=tb('xlt pv hp')+'<tr class="ht"><td class="hl">레<span class="fb">▾</span></td>'+cols.map(c=>'<td class="h">'+c[2]+'</td>').join('')+'</tr>';
+  wb.rows.forEach(r=>{ h+='<tr><td>'+Number(r.date.slice(8))+'</td>'+cols.map(([k,c])=>'<td>'+fv(get(r,k),c)+'</td>').join('')+'</tr>'; });
+  h+='</tbody></table>';
   return h;
 }
 // 상품별 → 엑셀 HTML(요약밴드+일별)
@@ -6275,7 +6477,7 @@ const AB_FLEX_MAP = {
   'basetuneAB|ngfa': {pay:'드래프터',   brand:'베이스튠',   site:'네이버', media:'네이버 GFA', acct:'ddable24'},   // 2026-07-08 확인. 최근 16건엔 없음
   'hattkeAB|ngfa':   {pay:'드래프터',   brand:'해트케',     site:'네이버', media:'네이버 GFA', acct:'ddable24'},   // 2026-08-27 선반영(해트케 SA·베이스튠 GFA와 동일 조합). 첫 결제 때 확인할 것
   'salagrisAB|nsa':  {pay:'플라이코퍼레이션', brand:'샐러그리스', site:'네이버', media:'네이버 SA', acct:'vivajok1234'},   // 2026-10-22 사용자 확인
-  'salagrisAB|google':{pay:'썸웨어코드', brand:'샐러그리스', site:'카페24', media:'카페24 구글', acct:'salagreece.1 샐러그리스'},   // 2026-10-29 지불사업장=썸웨어코드(네이버 SA만 플라이코퍼레이션)
+  'salagrisAB|google':{pay:'@@S20@@', brand:'샐러그리스', site:'카페24', media:'카페24 구글', acct:'salagreece.1 샐러그리스'},   // 2026-10-29 지불사업장=@@S20@@(네이버 SA만 플라이코퍼레이션)
   // 그래니는 GFA 안 함.
 };
 // 플렉스에 아예 양식이 없는 매체 — 오류가 아니라 '별도 처리' 대상이다(사용자 확인 2026-08-20).
