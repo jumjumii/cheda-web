@@ -1712,6 +1712,10 @@ function processHattkeGoogleText(text){
       const name=(c[ci.camp]||'').replace(/"/g,'').trim();
       if(!name) continue;
       if(name==='--'||/^총/.test(name)) continue;   // 맨 아래 총계행 제외
+      const ovp=(window.__campProd||{})[name];   // ★2026-11-10 화면에서 정한 제품이 먼저
+      if(ovp){ const kk={아크넨패드:'ac',압력이불:'pb',더마텍소베개:'pi',휘핑차렵:'wp',압력커버:'cv'}[ovp];
+        const a=kk? agg[kk] : (agg['@'+ovp]=agg['@'+ovp]||{cost:0,conv:0,val:0,n:0});   // 그 밖의 제품은 제품 이름 행으로
+        a.cost+=gnum(c[ci.cost]); a.conv+=gnum(c[ci.conv]); a.val+=gnum(c[ci.val]); a.n++; continue; }
       const m=name.toLowerCase().match(tok);
       const isCv=/커버|cover/i.test(name);   // ★2026-10-16 압력이불커버 — pb보다 우선
       if(!m && !isCv){ unmatched.push(name); continue; }
@@ -1728,6 +1732,7 @@ function processHattkeGoogleText(text){
     Object.keys(MAP).forEach(k=>fillGdnRow(reportDate,MAP[k],r2(agg[k].cost),r2(agg[k].conv),r2(agg[k].val)));
     if(agg.wp.n) fillGdnRow(reportDate,'휘핑차렵',r2(agg.wp.cost),r2(agg.wp.conv),r2(agg.wp.val));   // 엑셀 RD 라벨 '휘핑차렵'
     if(agg.cv.n) fillGdnRow(reportDate,'압력커버',r2(agg.cv.cost),r2(agg.cv.conv),r2(agg.cv.val));   // 커버 캠페인 있을 때만 행 추가
+    Object.keys(agg).filter(k=>k[0]==='@').forEach(k=>fillGdnRow(reportDate,k.slice(1),r2(agg[k].cost),r2(agg[k].conv),r2(agg[k].val)));
     fmtNumfmtAll();
 
     if(dz) dz.classList.add('loaded');
@@ -3557,7 +3562,7 @@ const COLLECT_PHASES=[
     ['구글',        ()=>runGoogleCollect(true)],
     ['올리브영',    ()=>runOYCollect(true)],
     ['카페24',      ()=>runCafe24Collect(true)],
-    ['크리테오',    ()=>runCriteoCollect(true)],
+    // 크리테오: 2026-11-06 그래니 크리테오 광고 꺼짐 → 수집 안 함(다시 켜면 이 줄 복구 + 작업 '데일리리포트_크리테오' 사용)
     ['메타',        ()=>runServerCollect('meta')],
     ['틱톡',        ()=>runTiktokCollect(true)],
     ['쿠팡',        ()=>runCoupangCollect(true)],
@@ -3595,6 +3600,7 @@ async function _runCollectPhase(ph, lines, empties){
   //   (재현 테스트 확인: 크리테오만 재수집 성공 → 메타·네이버·카페24 전부 0행)
   //   fillCafe24 등은 같은 날짜 행을 찾아 재사용하므로 미리 올려둬도 행 중복은 없음.
   ensureDateLoaded();
+  if(ph.brand==='hattke') await ensureCampProd();   // 화면에서 정한 캠페인→제품(구글 분류에 씀)
   lines.push(`<b>[${ph.name}]</b>`); _allStatusRender('🔄 수집 중…', lines);
   const _tgt=(typeof datesInRange==='function' && datesInRange()[0]) || getTo();
   await rdMediaLoad(ph.brand, _tgt);   // ⏭ 건너뛰기 판정 근거(엑셀 RD)
@@ -3639,10 +3645,28 @@ async function _runCollectPhase(ph, lines, empties){
       lines[lines.length-1]=`&nbsp;&nbsp;⛔ ${nm} <span style="color:#b91c1c">(중단됨 — 필요하면 나중에 개별 재수집)</span>${_slow}`;
       (window.__collectStopped=window.__collectStopped||[]).push(`${ph.name}·${nm}`);
     }
-    else { lines[lines.length-1]=`&nbsp;&nbsp;⚠ ${nm} <span style="color:#c0392b">(${COLLECT_RETRIES}회 재수집했으나 데이터 없음 — 수집기 점검 필요)</span>${_slow}`; empties.push(`${ph.name}·${nm}`); }
+    else { lines[lines.length-1]=`&nbsp;&nbsp;⚠ ${nm} <span style="color:#c0392b">(${window.__srvDown?'PC 수집서버 꺼짐 — 수집 PC에서 데일리리포트.bat → 1번 실행 후 이 매체만 다시 수집':COLLECT_RETRIES+'회 재수집했으나 데이터 없음 — 수집기 점검 필요'})</span>${_slow}`; empties.push(`${ph.name}·${nm}`); }
     _allStatusRender('🔄 수집 중…', lines);
   }
   saveData(true); lines.push(`&nbsp;&nbsp;💾 ${ph.name} 저장됨`); _allStatusRender('🔄 수집 중…', lines);
+  // ★2026-11-10 모르는 광고 캠페인 — 코드(pb/wp/ac…)도 없고 확인된 적도 없는데 돈이 쓰인 캠페인.
+  //   엑셀에선 조용히 아크넨패드(GFA는 압력이불)로 들어가 다른 제품 성과가 오염됨 → 상태창(=무인 결과요약)에 빨갛게.
+  //   확인되면 수집\캠페인점검.py OK_NAMES 에 추가.
+  if(ph.brand==='hattke'){ try{
+    const ds=(typeof datesInRange==='function' && datesInRange().length)? datesInRange() : [getTo()];
+    const u=((await (await fetch(`${SUSERVER}/unknowncamps?brand=hattke&dates=${ds.join(',')}`)).json()).unknown)||[];
+    if(u.length){
+      lines.push(`<span style="color:#dc2626;font-weight:700">‼ 모르는 광고 캠페인 ${u.length}건 — 무슨 제품인지 확인 필요(지금은 아크넨패드/GFA는 압력이불로 들어감)</span>`);
+      // 캠페인마다 제품 칸: 목록에서 고르거나 직접 써서 💾 → 수집서버 /campprod 에 저장 → 다음 엑셀 입력 때 mapping AI:AJ 로 들어감
+      const seen=new Set();
+      u.forEach(([d,md,n,c])=>{ if(seen.has(n)) return; seen.add(n); const id='cp'+Math.random().toString(36).slice(2,9);
+        lines.push(`<span style="color:#dc2626">&nbsp;&nbsp;· ${d} ${_esc(md)} <b>${_esc(n)}</b> ${Math.round(c).toLocaleString('ko-KR')}원 → 제품 `
+          +`<input id="${id}" list="htprods" placeholder="고르거나 직접 입력" style="width:150px;padding:1px 4px;border:1px solid #fca5a5;border-radius:4px">`
+          +` <button data-n="${_esc(n).replace(/"/g,'&quot;')}" onclick="saveCampProd(this.dataset.n,'${id}',this)" style="padding:1px 8px;border:none;border-radius:4px;background:#dc2626;color:#fff;cursor:pointer">💾 저장</button></span>`); });
+      lines.push(`<datalist id="htprods">${HT_WB_PRODUCTS.map(([p])=>`<option value="${p}">`).join('')}</datalist>`);
+      _allStatusRender('🔄 수집 중…', lines); showToast(`‼ 해트케 모르는 광고 캠페인 ${u.length}건 — 상태창 확인`);
+    }
+  }catch(e){} }
 }
 async function runAllCollect(){
   const dates=datesInRange();
@@ -4012,10 +4036,12 @@ function computeHattkeReport(date){
 //   RD_market J..O = C..H × (1−수수료), 카페24행 C..H = Σ판매E(M=상품) − Σ환불E
 //   RD_성과(fx): 구매=Σ판매[상품카운트열](M=상품)−환불, 광고비=ΣRD.E(U=상품), 매출=ΣRD_market[상품열]
 const HT_WB_PRODUCTS=[   // [RD_성과 이름, 매핑 카운트 키, RD_market 열 index(C=0)]
-  ['아크넨패드','ac',0],['더마텍소베개','pi',1],['압력이불','pb',2],['차렵이불','cr',3],['휘핑차렵','wp',4],['압력커버','cv',5]];
+  ['아크넨패드','ac',0],['더마텍소베개','pi',1],['압력이불','pb',2],['차렵이불','cr',3],['휘핑차렵','wp',4],['압력커버','cv',5],['스트라차렵','st',6]];   // ★2026-11-09 스트라차렵(스트라이프 차렵이불) = 매핑 AG·RD_market I
 function _htWbU(campaign){
+  const ov=(window.__campProd||{})[String(campaign==null?'':campaign).trim()]; if(ov) return ov;   // ★사람이 정한 제품(엑셀 mapping AI:AJ와 같음)
   const s=String(campaign==null?'':campaign).toLowerCase();
   if(/pb|압력/.test(s)) return '압력이불';
+  if(/스트라|stripe/.test(s)) return '스트라차렵';   // ★엑셀 RD.U와 같은 순서(차렵·cr보다 먼저)
   if(/wp|휘핑/.test(s)) return '휘핑차렵';
   if(/cr|차렵/.test(s)) return '차렵이불';
   if(/pi|베개/.test(s)) return '더마텍소베개';
@@ -4030,7 +4056,7 @@ function _xlSerialToYmd(v){
 function computeHattkeWorkbook(blocks, codes, fee){
   fee=fee||MARKET_FEE;
   const idx={}; let staleMap=false;
-  Object.keys(codes||{}).forEach(k=>{ const kk=_stripEmoji(k).toLowerCase(); if(!(kk in idx)) idx[kk]=codes[k]; if(codes[k].cv===undefined) staleMap=true; });
+  Object.keys(codes||{}).forEach(k=>{ const kk=_stripEmoji(k).toLowerCase(); if(!(kk in idx)) idx[kk]=codes[k]; if(codes[k].st===undefined) staleMap=true; });
   const tsvOf=sh=>{ const b=blocks.find(x=>x.sheet===sh); return b&&b.tsv? b.tsv.split('\n').filter(l=>l.trim()).map(l=>l.split('\t')) : []; };
   const days={}, unmapped={};
   const D=d=>days[d]||(days[d]={ad:{},buy:{},rev:{}});
@@ -4043,7 +4069,7 @@ function computeHattkeWorkbook(blocks, codes, fee){
     const m=idx[_stripEmoji(code).toLowerCase()];
     if(!m){ unmapped[code]={name:r[1]||'', namefull:r[2]||'', sheet:sh, date:d}; return; }
     const q=_num(r[3]), o=D(d);
-    HT_WB_PRODUCTS.forEach(([pn,k])=>{ if(m.p===pn) o.buy[pn]=(o.buy[pn]||0)+sg*(Number(m[k])||0)*q; });
+    HT_WB_PRODUCTS.forEach(([pn,k])=>{ if(m.p===pn) o.buy[pn]=(o.buy[pn]||0)+sg*(Number(k[0]==='@'? (m.q||{})[pn] : m[k])||0)*q; });
     const cc=c24[d]||(c24[d]={}); cc[m.p]=(cc[m.p]||0)+sg*_num(r[4]);
   }));
   // RD_market (카페24 행은 수식이라 위 c24로 대체)
@@ -4140,7 +4166,20 @@ function _stripEmoji(s){
     .replace(/\s{2,}/g,' ').trim();
 }
 // 매핑 codes/options 키를 이모지 제거 정규화 — mapping 시트에 이모지가 있든 없든 매칭되게(양쪽 다 stripEmoji).
+// ★2026-11-10 엑셀에 새 제품 칸이 자동으로 생기면(올인원 add_product_hattke) 화면 보기도 따라감 — 매핑 q(머리글 이름) 기준
+function _htSyncProducts(d){
+  const any=d&&d.codes&&Object.values(d.codes).find(c=>c&&c.q); if(!any) return;
+  Object.keys(any.q).forEach((n,i)=>{
+    if(HT_WB_PRODUCTS.some(([p])=>p===n)) return;
+    HT_WB_PRODUCTS.push([n,'@'+n,i]);
+    HT_PV_BAND.push([n,n,['a','b','v','r'],['총 광고비','총 판매건수','총 매출','ROAS']]);
+    HT_PV_HEAD[n]=[n+' 광고비',n+'구매',n+'매출',n+' ROAS'];
+    HT_XW.push(95,95,95,104); HT_PV_ORDER.push(n);
+  });
+  HT_XW_SUM=HT_XW.reduce((a,b)=>a+b,0); HT_XCG='<colgroup>'+HT_XW.map(w=>'<col style="width:'+w+'px">').join('')+'</colgroup>';
+}
 function _normMapCodes(d){
+  try{ _htSyncProducts(d); }catch(e){}
   if(d && d.codes){ const nc={}; for(const k in d.codes) nc[_stripEmoji(k)]=d.codes[k]; d.codes=nc; }
   if(d && d.options){ const no={}; for(const k in d.options) no[_stripEmoji(k)]=d.options[k]; d.options=no; }
   return d;
@@ -4227,7 +4266,7 @@ async function reloadReportPivot(dateOverride){
     document.getElementById('rp-body').innerHTML='<div style="color:#888;padding:20px;text-align:center">🧮 저장된 수집 데이터로 계산 중…</div>';
     document.getElementById('rp-sub').textContent='';
     window.__unmappedOrders={}; window.__unmappedOptions={};     // 미매핑 초기화
-    if(brand==='hattke'){ await ensureHattkeMap(date); window.__optionMap=null; }        // 해트케=주문매핑
+    if(brand==='hattke'){ await ensureHattkeMap(date); await ensureCampProd(); window.__optionMap=null; }        // 해트케=주문매핑
     else { await ensureOptionMap(brand, date); window.__hattkeMap=null; }                 // 그래니/베이스튠=옵션매핑
     try{
       const d=computeCollectedPivot(brand, monthStr);
@@ -4245,7 +4284,7 @@ async function reloadReportPivot(dateOverride){
     const d=await res.json();
     if(d.error){ document.getElementById('rp-body').innerHTML=`<div style="padding:16px">${sourceToggleHTML()}<div style="color:#c0392b;margin-top:10px">⚠ ${d.error}</div></div>`; return; }
     if(!d.dates||!d.dates.length){ document.getElementById('rp-body').innerHTML='<div style="color:#888;padding:16px">이 달 데이터가 없습니다.</div>'; return; }
-    if(brand==='hattke'){ await ensureHattkeMap(date); try{ d.wb=hattkeWbLocal(monthStr); }catch(e){ console.warn('hattkeWb',e); } }   // 상품별은 워크북 모드에서도 엑셀 양식
+    if(brand==='hattke'){ await ensureHattkeMap(date); await ensureCampProd(); try{ d.wb=hattkeWbLocal(monthStr); }catch(e){ console.warn('hattkeWb',e); } }   // 상품별은 워크북 모드에서도 엑셀 양식
     setSel(d);
   }catch(e){
     document.getElementById('rp-body').innerHTML='<div style="color:#c0392b;padding:16px">⚠ 수집서버 미연결 — "데일리리포트.bat"을 켜세요.</div>';
@@ -4343,6 +4382,23 @@ async function xlImg(k, mode){
   if(mode==='save'){ const a=document.createElement('a'); a.download=f+'.png'; a.href=cv.toDataURL('image/png'); a.click(); showToast('⬇ '+f+'.png 저장됨'); return; }
   cv.toBlob(async b=>{ try{ await navigator.clipboard.write([new ClipboardItem({'image/png':b})]); showToast('🖼 '+f+' 복사됨 — 슬랙에 Ctrl+V'); }
     catch(e){ showToast('복사 실패 — PNG 저장을 쓰세요.'); } },'image/png');
+}
+// 새 제품 이름 자체도 표에 넣는다(구글·GFA·쿠팡은 '제품 이름' 행으로 들어오므로) — 기존 제품은 원래 규칙 그대로
+async function ensureCampProd(){ try{ const m=(await (await fetch(`${SUSERVER}/campprod`)).json()).map||{};
+  Object.values(m).forEach(v=>{ if(!HT_WB_PRODUCTS.some(([p])=>p===v) && !(v in m)) m[v]=v; }); window.__campProd=m; }catch(e){} }
+// ★2026-11-10 모르는 캠페인 → 제품 지정(고르거나 직접 입력). 저장소=수집서버 수집\해트케_캠페인제품.json
+async function saveCampProd(name, inputId, btn){
+  const prod=(document.getElementById(inputId)?.value||'').trim();
+  if(!prod){ showToast('제품을 고르거나 입력하세요.'); return; }
+  try{
+    const j=await (await fetch(`${SUSERVER}/campprod?name=${encodeURIComponent(name)}&prod=${encodeURIComponent(prod)}`)).json();
+    if(!j.ok) throw new Error('저장 실패');
+    window.__campProd=j.map;
+    if(btn){ btn.textContent='✅ '+prod; btn.disabled=true; btn.style.background='#16a34a'; }
+    const known=HT_WB_PRODUCTS.some(([p])=>p===prod);
+    showToast(known? `✅ ${name} → ${prod} 저장 — 다음 엑셀 입력부터 이 제품으로 들어가요`
+                   : `✅ ${name} → ${prod} 저장 — 새 제품이라 다음 엑셀 입력 때 엑셀에 제품 칸이 자동으로 생겨요`);
+  }catch(e){ showToast('저장 실패 — 수집서버가 켜져 있는지 확인하세요'); }
 }
 // 제품 그룹 색(세로 열 배경 구분). 전체=index0.
 const GROUP_TINTS=['#eef2ff','#eff6ff','#fff7ed','#f0fdf4','#fdf4ff','#fefce8'];
@@ -4686,15 +4742,17 @@ const HT_PV_BAND=[   // [밴드 이름, 상품키('전체'=합), 열들]  열: a
   ['휘핑차렵이불','휘핑차렵',['a','b','v','r'],['총 광고비','총 판매건수','총 매출','ROAS']],
   ['아크넨패드','아크넨패드',['a','b','v','r'],['총 광고비','총 판매건수','총 매출','ROAS']],
   ['더마텍소 베개','더마텍소베개',['b','v'],['총 판매건수','총 매출']],
-  ['더마텍소 차렵이불','차렵이불',['b','v'],['총 판매건수','총 매출']]];
+  ['더마텍소 차렵이불','차렵이불',['b','v'],['총 판매건수','총 매출']],
+  ['스트라이프 차렵이불','스트라차렵',['a','b','v','r'],['총 광고비','총 판매건수','총 매출','ROAS']]];
+const HT_PV_ORDER=['전체','압력이불','압력커버','휘핑차렵','아크넨패드','더마텍소베개','차렵이불','스트라차렵'];
 const HT_PV_HEAD={전체:['전체 광고비','총구매','전체 매출','전체 ROAS'], 압력이불:['압력이불광고비','압력이불 구매','압력이불매출','압력이불ROAS'],
   압력커버:[null,'압력이불커버.','압력이불커버 매출.'], 휘핑차렵:['휘핑차렵 광고비','휘핑차렵구매','휘핑차렵매출','휘핑차렵 ROAS'],
   아크넨패드:['아크넨패드 광고비','아크넨 패드 구매','아크넨패드 매출','아크넨패드 ROAS'], 더마텍소베개:[null,'더마텍소베개 구매','더마텍소베개 매출'],
-  차렵이불:[null,'차렵이불구매','차렵이불매출']};
+  차렵이불:[null,'차렵이불구매','차렵이불매출'], 스트라차렵:['스트라차렵 광고비','스트라차렵구매','스트라차렵매출','스트라차렵 ROAS']};
 // 엑셀 'Report_전일 성과' X..AT 열 너비(문자 단위) → px. 밴드·year/mon·피벗이 같은 열을 공유.
-const HT_XW=[4.375,15,9.75,18.25,12.375,15.5,14.125,16.625,15,15.125,18.875,18.5,15.125,15.125,16.5,19,16.875,16.875,18.5,18.25,19,19.875,15.125].map(w=>Math.round(w*6.3));
-const HT_XW_SUM=HT_XW.reduce((a,b)=>a+b,0);
-const HT_XCG='<colgroup>'+HT_XW.map(w=>'<col style="width:'+w+'px">').join('')+'</colgroup>';
+const HT_XW=[4.375,15,9.75,18.25,12.375,15.5,14.125,16.625,15,15.125,18.875,18.5,15.125,15.125,16.5,19,16.875,16.875,18.5,18.25,19,19.875,15.125,18.5,15.125,15.125,16.5].map(w=>Math.round(w*6.3));
+let HT_XW_SUM=HT_XW.reduce((a,b)=>a+b,0);
+let HT_XCG='<colgroup>'+HT_XW.map(w=>'<col style="width:'+w+'px">').join('')+'</colgroup>';
 const _pv0=v=>{ const n=Number(v)||0; if(n===0) return '-'; return Math.round(n).toLocaleString('ko-KR'); };
 function hattkeProductHtmlEx(wb, month){
   const KI={a:0,b:1,v:2,r:3}, KF={a:'광고비',b:'구매',v:'매출'};
@@ -4707,9 +4765,9 @@ function hattkeProductHtmlEx(wb, month){
   h+='<tr>'+x0+HT_PV_BAND.map(([,key,cols],i)=>cols.map((c,j)=>'<td class="v'+(c==='r'?' r':'')+(i&&!j?' gl':'')+'">'+fv(tot[key],c)+'</td>').join('')).join('')+'</tr></tbody></table>';
   const ym=String(month||'').split('-'); const yy=ym[0], mm=ym[1];
   const tb=c=>'<table class="'+c+'" style="table-layout:fixed;width:'+HT_XW_SUM+'px">'+HT_XCG+'<tbody>';
-  h+=tb('xpf')+'<tr><td>year</td><td>'+_esc(yy||'')+'<span class="fb fr">'+XL_FUN+'</span></td><td colspan="21"></td></tr>'
-    +'<tr><td>mon</td><td>'+_esc(String(Number(mm)||''))+'<span class="fb fr">'+XL_FUN+'</span></td><td colspan="21"></td></tr></tbody></table>';
-  const order=['전체','압력이불','압력커버','휘핑차렵','아크넨패드','더마텍소베개','차렵이불'];
+  h+=tb('xpf')+'<tr><td>year</td><td>'+_esc(yy||'')+'<span class="fb fr">'+XL_FUN+'</span></td><td colspan="'+(HT_XW.length-2)+'"></td></tr>'
+    +'<tr><td>mon</td><td>'+_esc(String(Number(mm)||''))+'<span class="fb fr">'+XL_FUN+'</span></td><td colspan="'+(HT_XW.length-2)+'"></td></tr></tbody></table>';
+  const order=HT_PV_ORDER;
   const cols=[]; order.forEach(k=>HT_PV_HEAD[k].forEach((lab,i)=>{ if(lab) cols.push([k,'abvr'[i],lab]); }));
   h+=tb('xlt pv hp')+'<tr class="ht"><td class="hl">레<span class="fb">▾</span></td>'+cols.map(c=>'<td class="h">'+c[2]+'</td>').join('')+'</tr>';
   wb.rows.forEach(r=>{ h+='<tr><td>'+Number(r.date.slice(8))+'</td>'+cols.map(([k,c])=>'<td>'+fv(get(r,k),c)+'</td>').join('')+'</tr>'; });

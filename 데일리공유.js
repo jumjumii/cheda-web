@@ -346,8 +346,9 @@ async function dlRtCheck() {
   window.fetch = async function (input, init) {
     const url = typeof input === 'string' ? input : (input && input.url) || '';
     if (!url.startsWith('http://127.0.0.1:8765/collect')) return _fetch(input, init);
-    try { return await _fetch(input, init); }
+    try { const r = await _fetch(input, init); window.__srvDown = false; return r; }
     catch (e) {
+      window.__srvDown = true;   // 수집 요약에 '수집기 점검 필요' 대신 '서버 꺼짐 → 할 일'을 띄우는 데 씀(데일리만들기.py)
       const q = new URL(url).searchParams, medium = (q.get('medium') || '쿠팡').normalize('NFC');
       const date = q.get('date') || dlYmd(new Date(Date.now() - 864e5));
       const since = q.get('since') || date, until = q.get('until') || date;
