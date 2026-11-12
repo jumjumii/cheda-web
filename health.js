@@ -18,7 +18,7 @@ async function healthCheck() {
 
   // 1) 데일리 매체 — 어제 값이 시트(col)에 있나 (클라우드 07:10 또는 PC 수집이 올림)
   const DAILY = { granny: ['메타', '구글', '틱톡', '카페24', '쿠팡'], hattke: ['메타', '구글', '틱톡', '카페24', '쿠팡', '네이버GFA', '카카오'],
-                  basetune: ['메타', '구글', '틱톡', '카페24', '쿠팡', '네이버GFA'], '-': ['네이버', '스마트스토어', '크리테오'] };
+                  basetune: ['메타', '구글', '틱톡', '카페24', '쿠팡', '네이버GFA'], '-': ['네이버', '스마트스토어'] };   // 크리테오: 2026-11-06 광고 꺼짐 → 수집 뺌(다시 켜면 복구)
   Object.entries(DAILY).forEach(([b, ms]) => ms.forEach(m => {
     const rs = recent.filter(r => r.kind === 'col' && r.brand === b && String(r.media).startsWith(m + '|' + yday + '|' + yday + '#'));
     const due = m === '크리테오' ? 10 : 9.5;
