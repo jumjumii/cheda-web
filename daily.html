@@ -1718,6 +1718,11 @@ function processHattkeGoogleText(text){
         a.cost+=gnum(c[ci.cost]); a.conv+=gnum(c[ci.conv]); a.val+=gnum(c[ci.val]); a.n++; continue; }
       const m=name.toLowerCase().match(tok);
       const isCv=/커버|cover/i.test(name);   // ★2026-10-16 압력이불커버 — pb보다 우선
+      if(!isCv && !(m && m[1].toLowerCase()==='pb')){   // ★2026-11-12 ac/pb/pi/wp 말고 다른 제품(구르미 gr·스트라이프 st·차렵 cr)은 제품 이름 행으로 — 엑셀 RD.U와 같은 판정
+        const p2=_htWbU(name);
+        if(p2 && !['아크넨패드','압력이불','더마텍소베개','휘핑차렵'].includes(p2) && /(^|_)(gr|st|cr)(_|$)|구르미|스트라|stripe|차렵/i.test(name)){
+          const a=(agg['@'+p2]=agg['@'+p2]||{cost:0,conv:0,val:0,n:0}); a.cost+=gnum(c[ci.cost]); a.conv+=gnum(c[ci.conv]); a.val+=gnum(c[ci.val]); a.n++; continue; }
+      }
       if(!m && !isCv){ unmatched.push(name); continue; }
       const k=isCv?'cv':m[1].toLowerCase();
       agg[k].cost+=gnum(c[ci.cost]);
@@ -4041,7 +4046,8 @@ function _htWbU(campaign){
   const ov=(window.__campProd||{})[String(campaign==null?'':campaign).trim()]; if(ov) return ov;   // ★사람이 정한 제품(엑셀 mapping AI:AJ와 같음)
   const s=String(campaign==null?'':campaign).toLowerCase();
   if(/pb|압력/.test(s)) return '압력이불';
-  if(/스트라|stripe/.test(s)) return '스트라이프차렵';   // ★엑셀 RD.U와 같은 순서(차렵·cr보다 먼저)
+  if(/(^|_)gr(_|$)|구르미|gruumi/.test(s)) return '구르미차렵';   // ★2026-11-12 엑셀 RD.U와 같은 순서·같은 단어 코드(차렵·cr보다 먼저)
+  if(/(^|_)st(_|$)|스트라|stripe/.test(s)) return '스트라이프차렵';
   if(/wp|휘핑/.test(s)) return '휘핑차렵';
   if(/cr|차렵/.test(s)) return '차렵이불';
   if(/pi|베개/.test(s)) return '더마텍소베개';
