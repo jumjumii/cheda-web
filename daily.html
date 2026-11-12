@@ -648,7 +648,7 @@ const BRAND_CFG = {
   hattke:{
     label:'해트케', lsPrefix:'ht_rd_',
     naverFilter: c=>c.toLowerCase().includes('hattke')||c.toLowerCase().includes('해트케'),
-    ssFilter:    n=>{const s=String(n==null?'':n); return s.includes('압력이불')||s.includes('해트케')||s.toLowerCase().includes('hattke');},  // 해트케 스토어 상품=압력이불(상품명에 '해트케' 글자 없음). 이름 바뀌어도 '압력이불' 키워드 포함으로 매칭
+    ssFilter:    n=>_htProdByName(n)!=null,   // ★2026-11-12 제품표(키워드+hints). 해트케 스토어 상품명엔 '해트케' 글자가 없다  // 해트케 스토어 상품=압력이불(상품명에 '해트케' 글자 없음). 이름 바뀌어도 '압력이불' 키워드 포함으로 매칭
     ssSplit:     true,   // 스마트스토어 매출을 제품(아크넨/베개/이불)별로 분리(쿠팡과 동일)
     // GFA 카드는 베이스튠처럼 **항상 표시**한다(2026-08-27, 사용자 요청).
     //   계정(HATTKE_GFA_ACCT)이 비어 있는 동안은 '수집'만 중단 — ZIP 파일 드롭은 지금도 된다.
@@ -1356,7 +1356,8 @@ async function handleSSFile(id,file){
     const iRfR =findColOrDef(headers,['환불금액'],16);
 
     const ssSplit=!!getBrand().ssSplit;   // 해트케=제품별(아크넨/베개/이불) 분리
-    const prods={아크넨패드:{buy:0,rev:0},더마텍소베개:{buy:0,rev:0},압력이불:{buy:0,rev:0},압력커버:{buy:0,rev:0}};   // ★2026-10-16 커버 분리(압력이불에 안 섞이게)
+    const prods={}; HT_ORDER.forEach(p=>prods[p]={buy:0,rev:0});   // ★2026-11-12 제품표 순서
+    const ssNew=[];   // 제품표에 없는 해트케 상품(새 상품)
     let totalBuy=0,totalRev=0,cnt=0;
     for(let i=hi+1;i<rows.length;i++){
       const row=rows[i];
@@ -1366,7 +1367,7 @@ async function handleSSFile(id,file){
       const b=toNum(row[iBuy])-toNum(row[iRef]);
       const r=toNum(row[iRev])-toNum(row[iRfR]);
       totalBuy+=b; totalRev+=r;
-      if(ssSplit){ const p=_hattkeProduct(name); if(prods[p]){ prods[p].buy+=b; prods[p].rev+=r; } }  // 상품명→제품 분류
+      if(ssSplit){ const p=_htProdByName(name); if(prods[p]){ prods[p].buy+=b; prods[p].rev+=r; } else if(b||r) ssNew.push(name); }  // 상품명→제품 분류
     }
     if(cnt===0){
       const bl=({granny:'그래니',basetune:'베이스튠',hattke:'압력이불'})[currentBrand]||'그래니';
@@ -1376,6 +1377,7 @@ async function handleSSFile(id,file){
     }
     const date=document.getElementById('ssdate-'+id)?.value||getFrom();
     state.ssData[id]={date,buy:totalBuy,rev:totalRev, prods:ssSplit?prods:null};
+    if(ssNew.length) showToast('⚠ 스마트스토어 새 상품(제품별 분류 안 됨, 합계엔 포함):\n'+ssNew.join('\n')+'\n→ 수집/해트케_제품표.json에 추가 필요');
     dz.classList.add('loaded');
     dz.querySelector('span')?.remove();
     dz.insertAdjacentHTML('afterbegin',`<span>✅ 구매 ${totalBuy}건</span>`);
@@ -2898,10 +2900,12 @@ function fillCurrentBrandCoupang(d){
     //   한 계정이 실패하면 그 계정 행만 빈칸(빨강)으로 두고 사람이 채우면 RD·market은 제품별로 자동 합산된다.
     //   옛 수집파일(계정별 제품값 없음)은 예전처럼 제품 합계 5행.
     [...document.querySelectorAll('#coupang-rows .mr')].forEach(el=>{ if(el.querySelector('.cp-date')?.value===date) el.remove(); });
-    const PRODS=['아크넨패드','압력이불','더마텍소베개','휘핑차렵','압력커버'];   // ★2026-10-16 압력커버
     const perAcct=detail.length && detail.every(a=>!a.ok || a.제품별_상세);
     const groups=perAcct ? detail.map(a=>({pre:(a.id||a.계정||'?')+'·', pd:a.ok?a.제품별_상세:null}))
                          : [{pre:'', pd:d.제품별_상세}];
+    // ★2026-11-12 기본 5제품 + 제품표의 다른 제품은 값이 있을 때만 행 추가
+    const PRODS=HT_ORDER.filter(p=>['아크넨패드','압력이불','더마텍소베개','휘핑차렵','압력커버'].includes(p)
+      || groups.some(g=>g.pd && g.pd[p] && (g.pd[p].매출||g.pd[p].구매||g.pd[p].광고비)));
     groups.forEach(g=>PRODS.forEach(pname=>{
       addCoupangRow(date, g.pre+pname);
       const row=document.querySelector('#coupang-rows .mr:last-child');
@@ -3894,7 +3898,15 @@ const _mediaItemCmp=(a,b)=>{ const ia=MEDIA_ITEM_ORDER.indexOf(a), ib=MEDIA_ITEM
 //     화면 리포트에 줄을 만들지 않는다. _hattkeProduct 는 분류하고 워크북 피벗(AM~AN)엔 나오므로
 //     슬랙에 보내는 캡처에는 정상 포함된다. 버그 아님 — 다시 넣지 말 것.
 // ★2026-10-15 '압력커버'(압력이불커버) 추가 — 카페24 전용(쿠팡·스스 매출 0). 워크북 RD_판매 M열 라벨 '압력커버'.
-const HATTKE_PRODUCTS=['아크넨패드','더마텍소베개','압력이불','휘핑차렵','압력커버'];
+// ★2026-11-12 해트케 제품표 — 수집/해트케_제품표.json 하나를 쿠팡수집·웹·엑셀이 같이 씀. 웹은 데일리만들기.py가 아래 줄을 그 파일로 바꿔 넣는다.
+const HT_TABLE=/*HT_TABLE*/{"order": ["아크넨패드", "더마텍소베개", "압력이불", "차렵이불", "휘핑차렵", "압력커버", "스트라이프차렵", "구르미차렵"], "rules": [["휘핑차렵", ["휘핑", "whip"]], ["구르미차렵", ["구르미", "gruumi"]], ["스트라이프차렵", ["스트라이프", "stripe"]], ["압력커버", ["커버", "cover"]], ["더마텍소베개", ["베개", "pillow"]], ["차렵이불", ["차렵", "comforter"]], ["압력이불", ["압력", "preoss", "프레오스"]], ["아크넨패드", ["아크넨", "acnen"]]], "hints": ["해트케", "헤트케", "hattke", "이불", "패드", "더마텍소", "blanket"]};
+const HT_ORDER=HT_TABLE.order;   // = 엑셀 RD_market C열부터 제품 순서
+function _htProdByName(name){   // 상품명 → 제품 | '?'(해트케 같은데 제품표에 없음) | null(해트케 아님)
+  const s=String(name==null?'':name).toLowerCase();
+  for(const [p,ks] of HT_TABLE.rules) if(ks.some(k=>s.includes(k.toLowerCase()))) return p;
+  return HT_TABLE.hints.some(k=>s.includes(k.toLowerCase()))?'?':null;
+}
+const HATTKE_PRODUCTS=HT_ORDER;
 function _hattkeProduct(text){
   const s=String(text==null?'':text).toLowerCase();
   if(/pi|베개/.test(s)) return '더마텍소베개';
@@ -3987,14 +3999,14 @@ function computeHattkeReport(date){
   (state.hattkeOrderRows||[]).forEach(r=>{ if(ymd(r[0])===date){ orderAmt+=_num(r[4]); qty+=_num(r[3]); } });
   (state.hattkeRefundRows||[]).forEach(r=>{ if(ymd(r[0])===date){ refundAmt+=_num(r[4]); } });
   let coupRaw=0;
-  (typeof buildHattkeMarketRows==='function'? buildHattkeMarketRows():[]).forEach(r=>{ if(ymd(r[0])===date) coupRaw+=_num(r[2])+_num(r[3])+_num(r[4])+_num(r[6]||0)+_num(r[7]||0); });   // ★2026-10-16 G=휘핑·H=커버 포함
+  (typeof buildHattkeMarketRows==='function'? buildHattkeMarketRows():[]).forEach(r=>{ if(ymd(r[0])===date) coupRaw+=r.slice(2).reduce((a,x)=>a+_num(x||0),0); });   // ★2026-11-12 제품 칸 전부   // ★2026-10-16 G=휘핑·H=커버 포함
   const rev=(orderAmt-refundAmt)/1.1 + coupRaw*(1-MARKET_FEE['쿠팡']);
   const { 매체별, 매체별총합 }=_mediaTableFromRows(rows);
   // ── 제품별(아크넨/소베개/이불) ──
   //   광고비 = campaign 분류(_hattkeProduct). 매출 = 결제금액 by 상품구분. 쿠팡 = 제품칸.
   //   구매수 = 매핑 시트 AA/AB/AC(주문마다 몇 구매로 셀지). 매핑 없으면 키워드+수량 폴백 & 미매핑 기록.
-  const pAd={}, pOrd={}, pRef={}, pQty={}, pCoup={아크넨패드:0,더마텍소베개:0,압력이불:0,휘핑차렵:0,압력커버:0};
-  HATTKE_PRODUCTS.forEach(p=>{ pAd[p]=0; pOrd[p]=0; pRef[p]=0; pQty[p]=0; });
+  const pAd={}, pOrd={}, pRef={}, pQty={}, pCoup={};
+  HATTKE_PRODUCTS.forEach(p=>{ pAd[p]=0; pOrd[p]=0; pRef[p]=0; pQty[p]=0; pCoup[p]=0; });
   rows.forEach(r=>{ if(r.type==='cafe24') return; const p=_hattkeProduct(r.campaign); if(pAd[p]!=null) pAd[p]+=_num(r.cost); });
   const HM=window.__hattkeMap;
   const classifyOrder=(name,namefull)=>{
@@ -4013,8 +4025,7 @@ function computeHattkeReport(date){
   };
   (state.hattkeOrderRows||[]).forEach(r=>{ if(ymd(r[0])===date){ const c=classifyOrder(r[1],r[2]); if(pOrd[c.p]!=null) pOrd[c.p]+=_num(r[4]); addCounts(c,_num(r[3]),1); } });
   (state.hattkeRefundRows||[]).forEach(r=>{ if(ymd(r[0])===date){ const c=classifyOrder(r[1],r[2]); if(pRef[c.p]!=null) pRef[c.p]+=_num(r[4]); addCounts(c,_num(r[3]),-1); } });
-  (typeof buildHattkeMarketRows==='function'? buildHattkeMarketRows():[]).forEach(r=>{ if(ymd(r[0])===date){ pCoup['아크넨패드']+=_num(r[2]); pCoup['더마텍소베개']+=_num(r[3]); pCoup['압력이불']+=_num(r[4]);
-      pCoup['휘핑차렵']+=_num(r[6]||0); pCoup['압력커버']+=_num(r[7]||0); } });   // ★H열=압력커버   // ★G열=휘핑차렵(스스 행은 5칸이라 undefined→0)
+  (typeof buildHattkeMarketRows==='function'? buildHattkeMarketRows():[]).forEach(r=>{ if(ymd(r[0])===date) HT_ORDER.forEach((p,i)=>{ pCoup[p]+=_num(r[2+i]||0); }); });   // ★2026-11-12 제품표 순서   // ★H열=압력커버   // ★G열=휘핑차렵(스스 행은 5칸이라 undefined→0)
   const 상품별=HATTKE_PRODUCTS.map(p=>{
     const m=(pOrd[p]-pRef[p])/1.1 + pCoup[p]*(1-MARKET_FEE['쿠팡']);
     return {상품:p, 광고비:Math.round(pAd[p]), 매출:Math.round(m), ROAS: pAd[p]? m/pAd[p]:0, 수량:pQty[p]};
@@ -4829,28 +4840,19 @@ function buildHattkeMarketRows(){
   //   매출을 바로 뽑는다. 이 행들은 날짜별 슬라이스(cp)에 저장돼 autoMerge(밤수집 스냅샷)에도 안전.
   //   (옛 방식=htm입력칸+아크넨자동계산은 autoMerge 때 htm이 안 따라와 아크넨이 총액으로 틀어짐)
   {
-    const PMAP={'아크넨패드':'아크넨','더마텍소베개':'베개','압력이불':'이불','휘핑차렵':'휘핑','압력커버':'커버'};
+    // ★2026-11-12 제품표 순서(HT_ORDER = 엑셀 RD_market C열부터)로 칸을 만든다 — 새 제품도 자동으로 제자리
     const cpByDate={};
     document.querySelectorAll('#coupang-rows .mr').forEach(el=>{
       const d=ymd(el.querySelector('.cp-date')?.value||''); if(!d) return;
-      const key=PMAP[cpProd(el.querySelector('.cp-name')?.value)]; if(!key) return;
-      (cpByDate[d]=cpByDate[d]||{아크넨:0,베개:0,이불:0,휘핑:0,커버:0})[key]+=toNum(el.querySelector('.cp-rev')?.value);
+      const key=cpProd(el.querySelector('.cp-name')?.value); if(!HT_ORDER.includes(key)) return;
+      const o=cpByDate[d]=cpByDate[d]||{}; o[key]=(o[key]||0)+toNum(el.querySelector('.cp-rev')?.value);
     });
     const done=new Set();
     Object.keys(cpByDate).forEach(d=>{
       const p=cpByDate[d]; done.add(d);
-      // 🚫 가구매 제외(쿠팡 제품별 매출)
-      p.아크넨=Math.max(0, p.아크넨 - _ggAmt(d,'coupang','아크넨패드'));
-      p.베개  =Math.max(0, p.베개   - _ggAmt(d,'coupang','더마텍소베개'));
-      p.이불  =Math.max(0, p.이불   - _ggAmt(d,'coupang','압력이불'));
-      p.휘핑  =Math.max(0, (p.휘핑||0) - _ggAmt(d,'coupang','휘핑차렵'));
-      p.커버  =Math.max(0, (p.커버||0) - _ggAmt(d,'coupang','압력커버'));
-      if(p.아크넨===0 && p.베개===0 && p.이불===0 && p.휘핑===0 && p.커버===0) return;
-      // ★열 맞춤(2026-09-17): F=차렵이불(쿠팡엔 아직 없음 → 빈칸), G=휘핑차렵.
-      //   쿠팡에 차렵이불도 생기면 6번째 자리에 값을 넣으면 된다.
-      out.push([d,'쿠팡', Math.round(p.아크넨), p.베개===0?'':Math.round(p.베개),
-                p.이불===0?'':Math.round(p.이불), '', p.휘핑===0?'':Math.round(p.휘핑),
-                p.커버===0?'':Math.round(p.커버)]);   // ★H=압력커버(2026-10-16)
+      const v=HT_ORDER.map(k=>Math.round(Math.max(0, (p[k]||0) - _ggAmt(d,'coupang',k))));   // 🚫 가구매 제외
+      if(v.every(x=>x===0)) return;
+      out.push([d,'쿠팡', v[0], ...v.slice(1).map(x=>x===0?'':x)]);
     });
     // 폴백: 제품별 쿠팡 행이 없는 날짜만 옛 방식(htm 입력칸 + 아크넨=쿠팡합−베개−이불)
     document.querySelectorAll('#hattke-market-rows .mr').forEach(el=>{
@@ -4868,13 +4870,10 @@ function buildHattkeMarketRows(){
     if(!d || !d.prods) return;
     const dd=ymd(d.date); if(!dd) return;
     // 🚫 가구매 제외(스마트스토어 제품별 매출)
-    const ac=Math.round(Math.max(0, d.prods.아크넨패드.rev - _ggAmt(dd,'ss','아크넨패드')));
-    const pi=Math.round(Math.max(0, d.prods.더마텍소베개.rev - _ggAmt(dd,'ss','더마텍소베개')));
-    const pb=Math.round(Math.max(0, d.prods.압력이불.rev - _ggAmt(dd,'ss','압력이불')));
-    const cv=Math.round(Math.max(0, (d.prods.압력커버?.rev||0) - _ggAmt(dd,'ss','압력커버')));   // ★옛 저장분엔 압력커버 없음
-    if(ac===0 && pi===0 && pb===0 && cv===0) return;
-    const row=[dd,'스마트스토어', ac, pi===0?'':pi, pb===0?'':pb];
-    if(cv) row.push('', '', cv);   // F=차렵·G=휘핑 빈칸, H=압력커버
+    const v=HT_ORDER.map(k=>Math.round(Math.max(0, (d.prods[k]?.rev||0) - _ggAmt(dd,'ss',k))));   // ★2026-11-12 제품표 순서(옛 저장분엔 없는 제품=0)
+    if(v.every(x=>x===0)) return;
+    const row=[dd,'스마트스토어', v[0], ...v.slice(1).map(x=>x===0?'':x)];
+    while(row.length>5 && row[row.length-1]==='') row.pop();   // 끝 빈칸 정리(예전 모양과 같게)
     out.push(row);
   });
   return out;
@@ -4893,7 +4892,7 @@ function buildHattkeMarketRows(){
 // ★2026-09-17 '휘핑차렵' 추가 — 워크북 RD_market G열. 카페24만 수식이고 쿠팡·스마트스토어는
 //   아직 이 제품을 안 판다(=빈칸). 쿠팡/스스에서도 팔리면 buildHattkeMarketRows 에 값을 더해야 한다.
 // ★2026-10-15 '압력커버' 추가 — 워크북 RD_market H열(헤더 '압력이불커버', 수식 라벨 '압력커버'). 카페24만 수식.
-const HATTKE_MARKET_PRODS=['아크넨패드','더마텍소베개','압력이불','차렵이불','휘핑차렵','압력커버'];
+const HATTKE_MARKET_PRODS=HT_ORDER;   // ★2026-11-12 제품표 순서 전부(전엔 커버까지 6칸 → 스트라이프·구르미 카페24 칸이 비었음)
 function hattkeCafe24MarketRow(d){
   const fx=p=>`=SUMIFS(RD_판매!$E:$E,RD_판매!$M:$M,"${p}",RD_판매!$F:$F,A{ROW})`
             +`-SUMIFS(RD_환불!$E:$E,RD_환불!$M:$M,"${p}",RD_환불!$F:$F,A{ROW})`;
