@@ -314,7 +314,7 @@ async function dlRtCheck() {
 
 // ── (2026-10-26) 실시간 가구매 → 데일리 표시 · BS 스케줄 팀 공유 ── (끝에 붙인 독립 코드)
 (function () {
-  const BS_KEY = /^(gs|ht|bt)_rd_bs_schedule$/;
+  const BS_KEY = /^(gs|ht|bt|sg)_rd_bs_schedule$/;   // ★2026-11-19 sg=샐러그리스
   const _set = Storage.prototype.setItem;
   Storage.prototype.setItem = function (k, v) {     // BS 월 비용 스케줄 저장 → 시트(설정/2000-01-04/bs)
     _set.call(this, k, v);

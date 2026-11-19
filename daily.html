@@ -7118,7 +7118,7 @@ function bsCostForDate(ds, product){
 function _bsProduct(campOrGroup){ const s=String(campOrGroup||''); return s.includes('커버') ? '압력커버' : s.includes('압력이불') ? '압력이불' : '아크넨패드'; }   // ★커버 먼저(2026-10-16)
 // 🔔 BS 갱신 알림(2026-10-26 사용자 요청): BS는 30일마다 갱신. 등록일 = 위 'BS 월 비용' 스케줄의 시작일(from).
 //   갱신일 = 등록일+30일. 충전일(월·목) 중 '갱신일 3일 전까지'의 마지막 날에 BS도 같이 충전·등록하라고 알린다(금액은 표시 안 함).
-const BS_PFX_OF = { granny:'gs_rd_', basetuneAB:'bt_rd_', hattkeAB:'ht_rd_', basetune:'bt_rd_', hattke:'ht_rd_' };
+const BS_PFX_OF = { granny:'gs_rd_', basetuneAB:'bt_rd_', hattkeAB:'ht_rd_', basetune:'bt_rd_', hattke:'ht_rd_', salagrisAB:'sg_rd_' };   // ★2026-11-19 샐러그리스 BS 시작(데일리 브랜드 아님 → 충전 칸에서만 씀)
 function bsAddDays(ds,n){ const d=new Date(ds+'T00:00:00'); d.setDate(d.getDate()+n); return ymdLocal(d); }
 function bsChargeDay(renew){ const d=new Date(bsAddDays(renew,-3)+'T00:00:00'); while(d.getDay()!==1&&d.getDay()!==4) d.setDate(d.getDate()-1); return ymdLocal(d); }
 function bsAlerts(bk, today){
@@ -7145,7 +7145,7 @@ function abBsState(bk){ abState._bs=abState._bs||{}; return abState._bs[bk]=abSt
 function abBsSched(bk){ let a=[]; try{ a=JSON.parse(localStorage.getItem(BS_PFX_OF[bk]+'bs_schedule')||'[]')||[]; }catch{} return Array.isArray(a)?a.filter(e=>e&&e.from&&e.cost>0):[]; }
 function abBsLatest(bk, prod){ return abBsSched(bk).filter(e=>e.from!=='1900-01-01' && (e.product||'')===prod).sort((x,y)=>x.from.localeCompare(y.from)).pop(); }
 function abBsBlockHTML(bk){
-  if(!BS_PFX_OF[bk] || bk==='salagrisAB') return '';
+  if(!BS_PFX_OF[bk]) return '';
   const hat=bk==='hattkeAB', st=abBsState(bk), today=abDate||abToday(), md=x=>x.slice(5).replace('-','/');
   if(hat && !st.prod) st.prod=(abBsSched(bk).find(e=>e.product)||{}).product||'압력이불';
   const prods = hat ? [...new Set([...abBsSched(bk).map(e=>e.product).filter(Boolean), ...BS_PRODS])] : [''];
@@ -7165,7 +7165,7 @@ function abBsBlockHTML(bk){
 function abBsExtend(dateVal){
   const msgs=[];
   AB_KEYS.forEach(bk=>{
-    const st=abBsState(bk), amt=abGetVal(st.amt); if(!amt || !BS_PFX_OF[bk] || bk==='salagrisAB') return;
+    const st=abBsState(bk), amt=abGetVal(st.amt); if(!amt || !BS_PFX_OF[bk]) return;
     const prod=bk==='hattkeAB'?(st.prod||'압력이불'):'';
     let start=st.added;   // 같은 충전 날짜에 다시 저장 → 그 항목 금액만 수정(중복 안 생김)
     if(!start){ const e=abBsLatest(bk,prod); start=e?bsAddDays(e.from,30):dateVal; st.added=start; }
