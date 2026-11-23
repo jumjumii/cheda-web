@@ -8033,7 +8033,7 @@ function abClearHistory(){
         + '<div class="cd-alert-s">수집값이 실제보다 적다는 뜻입니다 → 스마트스토어/쿠팡 재수집 후 다시 확인하세요.'
         + ' 이대로 내보내면 그 값은 0으로 나갑니다.</div></div>';
     }
-    h+='<div class="cd-cap">'+bl+' · 값 있으면 ✅ 없으면 ❌(누르면 최근 값) · <b style="color:#b45309">★=변동(마우스 올리면 수치)</b> · <b style="color:#b91c1c">빨간 숫자=중요한 지표(광고 매체는 광고비, 마켓은 매출)가 크게 튐 — 2배↑ 또는 60%↓(누르면 자세히)</b> · 기준=최근 '+CD_BASE_DAYS+'일 평균 대비 '+CD_DIFF_PCT+'%↑ · 날짜 클릭=폼에 불러오기</div>';
+    h+='<div class="cd-cap">'+bl+' · 값 있으면 ✅ 없으면 ❌ · <b style="color:#b45309">★=변동</b> · <b style="color:#b91c1c">빨간 ▲▼=크게 변동(2배↑·60%↓)</b> · <b>칸을 누르면 광고비·매출 수치</b> · 기준=최근 '+CD_BASE_DAYS+'일 평균 대비 '+CD_DIFF_PCT+'%↑ · 날짜 클릭=폼에 불러오기</div>';
     if(!ds.length){ body.innerHTML=h+'<div class="cd-empty">표시할 날짜가 없어요</div>'; return; }
     h+='<table><thead><tr><th>날짜</th>';
     MED.forEach(m=>h+='<th>'+m.label+'</th>');
@@ -8048,21 +8048,22 @@ function abClearHistory(){
         if(ok){
           const fl=mets.filter(x=>x.flagged);
           if(fl.length){
-            const hot=fl.filter(x=>x.imp && x.huge);   // 중요한 지표(광고 매체=광고비, 마켓=매출)가 크게 튄 것만 빨강 — 나머지는 ★
-            // 둘 다 문제면 둘 다 보여준다(중요한 것 먼저)
+            const hot=fl.filter(x=>x.huge);   // 크게(2배↑·60%↓) 튄 지표가 하나라도 있으면 빨강 — 광고비든 매출이든
+            // 둘 다 문제면 둘 다 보여준다(중요한 것 먼저). 칸에는 ▲▼만(줄이 바뀌면 어지럽다) — 수치는 누르면
             const order=fl.slice().sort((a,b)=>(b.imp?1:0)-(a.imp?1:0));
+            at=' data-ci="'+ck+'"'; CD_POP[ck]=cdPopHtml(order);
             if(hot.length){
-              cls='cd-hot'; at=' data-ci="'+ck+'"'; tip=' title="누르면 자세히"';
-              txt=hot.map(x=>'<div class="cd-hl"><span>'+x.lab.replace('(가구매 제외)','')+'</span> '+(x.cur>=x.avg?'▲':'▼')+'<b>'+cdN(x.cur)+'</b></div>').join('');
-              CD_POP[ck]=cdPopHtml(order);
+              cls='cd-hot';
+              const ar=[]; hot.forEach(x=>{ const t=(x.cur>=x.avg?'▲':'▼'); if(ar[ar.length-1]!==t) ar.push(t); });
+              txt=ar.map(t=>'<span class="'+(t==='▲'?'up':'dn')+'">'+t+'</span>').join('');
             } else {
-              cls='cd-diff'; txt='★'; tip=' title="'+cdPopText(order).replace(/"/g,'')+'"';
+              cls='cd-diff'; txt='★';
             }
           }
         } else {
           // 값이 없는 칸 — 누르면 그 매체에서 중요한 지표의 최근 값을 보여준다(오늘 없음)
           const im=mets.filter(x=>x.imp);
-          if(im.length){ at=' data-ci="'+ck+'"'; tip=' title="값이 없어요 — 누르면 최근 값"'; CD_POP[ck]=cdPopHtml(im); }
+          if(im.length){ at=' data-ci="'+ck+'"'; CD_POP[ck]=cdPopHtml(im); }
         }
         h+='<td class="'+cls+'"'+tip+at+'>'+txt+'</td>';
       });
@@ -8116,10 +8117,11 @@ function abClearHistory(){
      +'#collect-dashboard td.cd-dt{font-weight:800;text-align:left;cursor:pointer;color:#1e3a8a}'
      +'#collect-dashboard td.cd-dt:hover{text-decoration:underline}'
      +'.cd-ok{color:#16a34a}.cd-no{color:#dc2626;background:#fef2f2}'
-     +'.cd-diff{color:#b45309;background:#fffbeb;font-weight:800;cursor:help}'
+     +'.cd-diff{color:#b45309;background:#fffbeb;font-weight:800;cursor:pointer}'
+     +'.cd-diff:hover{background:#fef3c7}'
      +'.cd-hot{background:#fef2f2;color:#b91c1c;font-weight:800;cursor:pointer;line-height:1.25;border:1px solid #fca5a5}'
      +'.cd-hot:hover{background:#fee2e2}'
-     +'.cd-hl span{font-size:10px;font-weight:600;color:#7f1d1d;margin-right:2px}.cd-hl b{font-size:15px;font-variant-numeric:tabular-nums}'
+     +'.cd-hot{white-space:nowrap;font-size:17px;letter-spacing:1px}.cd-hot .up{color:#dc2626}.cd-hot .dn{color:#2563eb}'
      +'#collect-dashboard td.cd-no[data-ci]{cursor:pointer}'
      +'.cd-dv{margin:2px 2px 8px;border:2px solid #f59e0b;border-radius:8px;background:#fff;overflow:hidden}'
      +'.cd-dvh{padding:6px 12px;font-weight:800;font-size:13px;color:#92400e;background:#fef3c7}'
