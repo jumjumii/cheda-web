@@ -162,102 +162,10 @@ async function dlAllInOne() {
   catch (e) { return { json: async () => ({ ok: false, error: '이 PC에는 수집 서버가 없어요 — 엑셀이 있는 PC(데일리리포트.bat 켜진 PC)에서 엑셀로 보내기를 눌러 주세요. (클립보드에는 복사됨)' }) }; }
 }
 
-// ── 4) 광고 파일 합계 수정 (2026-11-23) ──
-//   예전엔 카드마다 「✏ 직접 수정」으로 캠페인 행을 한 줄씩 고쳤다 — 캠페인이 너무 많아 보기 힘들다는 요청으로 없앴다.
-//   지금은 매체×날짜의 합계(광고비·매출)를 한 표에서 한꺼번에 고친다.
-//   합계를 고치면 그 날짜의 캠페인 행들에 같은 비율로 나눠 담는다(행 구조·소스는 그대로 → 엑셀 열 배치가 안 깨짐).
-const DL_BULK_KEYS = ['meta', 'tiktok', 'naver', 'gfa', 'kakao', 'criteo'];
-const dlNum = v => Number(String(v == null ? '' : v).replace(/[^0-9.-]/g, '')) || 0;
-const dlWon = v => Math.round(v || 0).toLocaleString();
-function dlBulkGroups() {   // 매체×날짜 합계 목록(날짜 오름차순)
-  const out = [];
-  DL_BULK_KEYS.forEach(k => {
-    const g = {};
-    ((state.processed || {})[k] || []).forEach(r => {
-      const x = g[r.date] = g[r.date] || { key: k, date: r.date, cost: 0, buy: 0, rev: 0 };
-      x.cost += +r.cost || 0; x.buy += +r.buy || 0; x.rev += +r.rev || 0;
-    });
-    Object.values(g).forEach(x => out.push(x));
-  });
-  return out.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : DL_BULK_KEYS.indexOf(a.key) - DL_BULK_KEYS.indexOf(b.key));
-}
-function dlBulkNewRow(key, date) {   // 파일 없이 넣을 때 쓰는 빈 행(소스·미디엄은 그 매체 설정을 따른다)
-  const cfg = PLATFORMS[key] || {}, any = ((state.processed || {})[key] || [])[0] || {};
-  const dflt = { naver: ['naversa', 'sa'], tiktok: ['TK', 'vid'] }[key] || [key, ''];
-  return { date, source: cfg.source === 'auto' ? (any.source || dflt[0]) : cfg.source, medium: cfg.medium === 'auto' ? (any.medium || dflt[1]) : cfg.medium,
-           campaign: '직접입력', cost: 0, buy: 0, rev: 0 };
-}
-function dlBulkSetTotal(key, date, field, val) {   // 그 매체·날짜의 광고비/매출 합계를 val로
-  const all = state.processed[key] = state.processed[key] || [];
-  let mine = all.filter(r => r.date === date);
-  if (!mine.length) { const r = dlBulkNewRow(key, date); all.push(r); mine = [r]; }
-  const old = mine.reduce((s, r) => s + (+r[field] || 0), 0);
-  if (old > 0) {
-    mine.forEach(r => { r[field] = Math.round((+r[field] || 0) * val / old); });
-    const diff = Math.round(val) - mine.reduce((s, r) => s + r[field], 0);        // 반올림 차이는 가장 큰 행에
-    if (diff) mine.slice().sort((a, b) => b[field] - a[field])[0][field] += diff;
-  } else mine[0][field] = Math.round(val);
-}
-function dlBulkMoveDate(key, from, to) {   // 날짜 바꾸기 — 도착 날짜에 이미 값이 있으면 이 값으로 바꾼다
-  const all = state.processed[key] || [];
-  const had = all.some(r => r.date === to);
-  state.processed[key] = all.filter(r => r.date !== to).map(r => (r.date === from ? Object.assign(r, { date: to }) : r));
-  if (had) showToast('📎 ' + (PLATFORMS[key] || {}).label + ' ' + to.slice(5) + '에 있던 값은 이 값으로 바꿨어요');
-}
-function dlBulkDone(key) {
-  try { dlEditDone(key, state.processed[key] || []); } catch (e) {}
-  dlBulkRender(true);
-}
-function dlBulkRender(force) {
-  const body = document.getElementById('dl-bulk-body'); if (!body) return;
-  const g = dlBulkGroups(), sig = JSON.stringify(g);
-  if (!force && body._sig === sig) return;
-  if (!force && body.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;   // 입력 중엔 다시 그리지 않는다
-  body._sig = sig;
-  const tot = g.reduce((a, x) => ({ c: a.c + x.cost, r: a.r + x.rev, b: a.b + x.buy }), { c: 0, r: 0, b: 0 });
-  const sum = document.getElementById('dl-bulk-sum');
-  if (sum) sum.textContent = g.length ? '· 광고비 ' + dlWon(tot.c) + ' · 매출 ' + dlWon(tot.r) : '· 파일을 넣거나 아래에서 행을 추가하세요';
-  const kor = k => (PLATFORMS[k] || {}).label || k;
-  body.innerHTML = !g.length ? '' :
-    '<table class="dl-bt"><thead><tr><th>매체</th><th>날짜</th><th>광고비</th><th>매출</th><th>구매</th><th></th></tr></thead><tbody>'
-    + g.map(x => '<tr data-k="' + x.key + '" data-d="' + x.date + '"><td><b>' + kor(x.key) + '</b></td>'
-        + '<td><input type="date" data-f="date" value="' + x.date + '"></td>'
-        + '<td><input class="numfmt" inputmode="numeric" data-f="cost" value="' + dlWon(x.cost) + '"></td>'
-        + '<td><input class="numfmt" inputmode="numeric" data-f="rev" value="' + dlWon(x.rev) + '"></td>'
-        + '<td class="dl-ro">' + dlWon(x.buy) + '</td><td><button data-del="1" title="이 매체·날짜 행 전부 삭제">✕</button></td></tr>').join('')
-    + '</tbody><tfoot><tr><td colspan="2">합계</td><td class="dl-ro">' + dlWon(tot.c) + '</td><td class="dl-ro">' + dlWon(tot.r) + '</td><td class="dl-ro">' + dlWon(tot.b) + '</td><td></td></tr></tfoot></table>';
-}
+// ── 4) (2026-11-23) 광고 파일 매체는 생성기 안의 「매체 행」(해트케 구글 형식: 파일 드롭 + 날짜·구분·광고비·구매·매출 행)에서 보고 고친다.
+//   옛 카드별 「✏ 직접 수정」(캠페인별 행)과 임시 「합계 표」는 쓰지 않아 없앴다 — 남아 있는 옛 버튼·표만 치운다.
 function dlEditor() {
-  document.querySelectorAll('.dl-edit-btn, .dl-edit').forEach(n => n.remove());   // 옛 캠페인별 「✏ 직접 수정」 제거
-  if (typeof PLATFORMS === 'undefined' || typeof state === 'undefined') return;
-  const grid = document.getElementById('platform-grid'); if (!grid) return;
-  if (document.getElementById('dl-bulk')) { dlBulkRender(false); return; }
-  const p = document.createElement('details'); p.id = 'dl-bulk'; p.open = true;
-  p.innerHTML = '<summary>📝 광고 파일 합계 <span id="dl-bulk-sum"></span> <small>날짜·광고비·매출을 칸에서 바로 고치면 그 날짜 캠페인들에 같은 비율로 반영돼요 (고친 뒤 Enter 또는 다른 칸 클릭)</small></summary>'
-    + '<div id="dl-bulk-body"></div>'
-    + '<div class="dl-bulk-add">+ 행 추가 <select id="dl-bulk-k">' + DL_BULK_KEYS.filter(k => PLATFORMS[k]).map(k => '<option value="' + k + '">' + PLATFORMS[k].label + '</option>').join('') + '</select>'
-    + ' <input type="date" id="dl-bulk-d"> <button id="dl-bulk-addbtn">추가</button></div>';
-  grid.insertAdjacentElement('afterend', p);
-  const body = document.getElementById('dl-bulk-body');
-  body.addEventListener('change', e => {
-    const el = e.target, tr = el.closest('tr[data-k]'); if (!tr) return;
-    const key = tr.dataset.k, d = tr.dataset.d, f = el.dataset.f;
-    if (f === 'cost' || f === 'rev') dlBulkSetTotal(key, d, f, dlNum(el.value));
-    else if (f === 'date' && el.value && el.value !== d) dlBulkMoveDate(key, d, el.value);
-    dlBulkDone(key);
-  });
-  body.addEventListener('click', e => {
-    const tr = e.target.closest && e.target.closest('tr[data-k]');
-    if (!tr || !e.target.dataset.del) return;
-    state.processed[tr.dataset.k] = (state.processed[tr.dataset.k] || []).filter(r => r.date !== tr.dataset.d);
-    dlBulkDone(tr.dataset.k);
-  });
-  document.getElementById('dl-bulk-addbtn').onclick = () => {
-    const key = document.getElementById('dl-bulk-k').value, d = document.getElementById('dl-bulk-d').value || (typeof getFrom === 'function' && getFrom()) || dlYmd(new Date(Date.now() - 864e5));
-    if (!(state.processed[key] || []).some(r => r.date === d)) { (state.processed[key] = state.processed[key] || []).push(dlBulkNewRow(key, d)); dlBulkDone(key); }
-    else showToast('이미 ' + d.slice(5) + ' ' + PLATFORMS[key].label + ' 행이 있어요 — 표에서 바로 고치세요');
-  };
-  dlBulkRender(true);
+  document.querySelectorAll('.dl-edit-btn, .dl-edit, #dl-bulk').forEach(n => n.remove());
 }
 function dlEditDone(key, rows) {
   try { if (rows.length) { setFileSummary(key, rows); document.getElementById('dz-' + key)?.classList.add('loaded'); } else setStat(key, '대기 중', ''); } catch (e) {}
@@ -324,19 +232,6 @@ async function dlRtCheck() {
     #coupang-rows .mf input.cp-minus,#coupang-rows .mf input.cp-net{width:110px}
     #coupang-rows,#coupang-rows+div{max-width:100%}
     .manual-item .mb:has(#coupang-rows){overflow-x:auto}
-    #dl-bulk{margin:10px 0 4px;border:1.5px solid #c7d2fe;border-radius:10px;background:#f8faff;padding:8px 12px}
-    #dl-bulk summary{cursor:pointer;font-weight:800;font-size:13px;color:#3730a3}
-    #dl-bulk summary small{font-weight:500;font-size:11px;color:#64748b;margin-left:6px}
-    .dl-bt{border-collapse:collapse;margin:8px 0}
-    .dl-bt th{font-size:11px;color:#64748b;text-align:left;padding:3px 10px}
-    .dl-bt td{padding:3px 10px;font-size:13px}
-    .dl-bt input{border:1px solid #cbd5e1;border-radius:6px;padding:4px 7px;font-size:13px;background:#fff}
-    .dl-bt input[data-f=cost],.dl-bt input[data-f=rev]{width:120px;text-align:right;font-variant-numeric:tabular-nums}
-    .dl-bt .dl-ro{text-align:right;color:#64748b;font-variant-numeric:tabular-nums}
-    .dl-bt tfoot td{border-top:2px solid #c7d2fe;font-weight:800;color:#1e293b}
-    .dl-bt button,.dl-bulk-add button{border:1px solid #cbd5e1;background:#fff;border-radius:6px;font-size:12px;cursor:pointer;padding:3px 8px}
-    .dl-bulk-add{font-size:12px;color:#475569;margin-top:2px}
-    .dl-bulk-add select,.dl-bulk-add input{border:1px solid #cbd5e1;border-radius:6px;padding:3px 6px;font-size:12px}
     #dl-rtcheck{margin:0 0 12px;padding:10px 14px;border:2px solid #dc2626;border-radius:10px;background:#fef2f2;font-size:13px;line-height:1.7}
     #dl-rtcheck .dl-big{color:#b91c1c;font-weight:700} #dl-rtcheck .dl-mid{color:#b45309}`;
   document.head.appendChild(css);

@@ -182,6 +182,36 @@ tr.r-oy{background:#fdf4ff}
 .rep-grp td{background:#f4f7ff;font-weight:800;color:#1a2e6e}
 .rep-sub td{color:#555}
 .rep-tot td{background:#eef3ff;font-weight:800;color:#1a2e6e;border-top:2px solid #c7d3f5}
+#cd-pop{display:none;position:fixed;z-index:99999;background:#fff;border:2px solid #dc2626;border-radius:10px;padding:10px 14px;box-shadow:0 6px 24px #0005;font-size:14px;line-height:1.9;max-width:620px}
+#cd-pop .cd-ph{font-weight:800;font-size:12px;color:#64748b;display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #e2e8f0;margin-bottom:4px}
+#cd-pop .cd-ph button{border:0;background:transparent;cursor:pointer;font-size:14px;color:#64748b}
+#cd-pop .cd-pl{white-space:nowrap}#cd-pop .cd-pt{font-size:15px;color:#0f172a}
+#cd-pop b{font-size:16px;font-variant-numeric:tabular-nums}
+#cd-pop .cd-up{color:#dc2626}#cd-pop .cd-dn{color:#2563eb}#cd-pop .cd-bad{color:#dc2626}
+/* ── 광고 파일 매체 블록 = 해트케 구글 형식 (2026-11-23): 제목줄(드롭·수집·초기화·추가) + 날짜·구분·광고비·구매·매출 행 ── */
+#platform-grid{display:block}
+#platform-grid .platform-card{display:block;border:1.5px solid #e5e7eb;border-radius:10px;margin-bottom:9px;overflow:visible;background:#fff}
+#platform-grid .mh{border-radius:9px 9px 0 0;flex-wrap:wrap;gap:6px}
+.pc-chip{display:inline-block;padding:2px 10px;border-radius:5px;color:#fff;font-weight:800;font-size:12px;margin-right:7px;letter-spacing:.3px}
+#platform-grid .mh-hint{color:#999;font-size:11px;margin-left:2px}
+#platform-grid .ss-drop{min-width:230px;flex:0 0 auto}
+#platform-grid .p-status{text-align:left;border:0;padding:5px 12px 2px;font-size:11.5px;min-height:0}
+#platform-grid .p-reset,#platform-grid .pc-add{width:auto;padding:5px 10px;font-size:11px;color:#666;background:#fff;border:1px solid #d0d5dd;border-radius:6px;cursor:pointer}
+#platform-grid .p-reset:hover,#platform-grid .pc-add:hover{color:#4f6ef7;border-color:#4f6ef7}
+#platform-grid .p-collect{margin:0!important}
+#platform-grid .pc-sel{padding:4px;border:1px solid #d0d5dd;border-radius:6px;font-size:11px}
+.pc-colhdr{display:flex;gap:5px;padding:0 3px;margin:2px 0 4px}
+.pc-colhdr span{font-size:10px;color:#777;font-weight:600}
+.pc-rows{padding:0 8px 6px}
+.pc-rows .mr{margin-bottom:4px}
+.pc-rows input[data-f=g]{width:110px;background:#fff;color:#334155;font-weight:700}
+.ss-slot{flex-wrap:wrap}
+.ss-items{flex:0 0 100%;margin-top:2px}
+.ss-items summary{cursor:pointer;font-size:11.5px;font-weight:700;color:#334155}
+.ss-it{border-collapse:collapse;margin:4px 0 2px;font-size:12px}
+.ss-it th{font-size:10.5px;color:#777;text-align:left;padding:2px 10px;font-weight:600}
+.ss-it td{padding:2px 10px;border-top:1px solid #eef0f3;white-space:nowrap}
+.ss-it td.r{text-align:right;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
@@ -1010,19 +1040,22 @@ function buildGrid() {
     const card = document.createElement('div');
     card.className = 'platform-card';
     card.innerHTML = `
-      <div class="p-header" style="background:${cfg.color}">${cfg.label}<small>${cfg.hint}</small></div>
-      <div class="drop-zone" id="dz-${key}">
-        <span style="font-size:18px">📂</span>
-        <span>${cfg.multi?'여러 파일':'파일 드롭(여러 개 가능)'}</span>
-        <input type="file" accept="${accept}" ${multiAttr} id="fi-${key}">
+      <div class="mh">
+        <div><span class="pc-chip" style="background:${cfg.color};${key==='kakao'?'color:#333':''}">${cfg.label}</span><span class="mh-hint">${cfg.hint}</span></div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <div class="ss-drop" id="dz-${key}"><span>📂 파일 드롭${cfg.multi?' (여러 파일)':' (여러 개 가능)'}</span><input type="file" accept="${accept}" ${multiAttr} id="fi-${key}"></div>
+          ${cfg.collect?`<button class="p-collect" onclick="runServerCollect('${key}')" title="수집서버로 ${cfg.label} 자동 수집(폼 자동기입). 데일리리포트.bat(1번 수집 시작) 실행 중이어야 함." style="padding:6px 10px;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">🔄 수집</button>`:''}
+          <select class="pc-sel" id="pa-${key}" style="display:none" title="추가할 행의 제품"></select>
+          <button class="pc-add" onclick="pcAdd('${key}')">+ 추가</button>
+          <button class="p-reset" onclick="resetPlatform('${key}')">↺ 초기화</button>
+        </div>
       </div>
       <div class="p-status" id="ps-${key}">대기 중</div>
-      ${cfg.collect?`<button class="p-collect" onclick="runServerCollect('${key}')" title="수집서버로 ${cfg.label} 자동 수집(폼 자동기입). 데일리리포트.bat(1번 수집 시작) 실행 중이어야 함." style="margin:0 4px 4px;padding:6px 10px;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">🔄 수집</button>`:''}
-      <button class="p-reset" onclick="resetPlatform('${key}')">↺ 초기화</button>
+      <div class="pc-rows" id="pr-${key}"></div>
     `;
     grid.appendChild(card);
 
-    const dz = card.querySelector('.drop-zone');
+    const dz = card.querySelector('.ss-drop');
     const fi = card.querySelector('input[type=file]');
 
     dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
@@ -1037,6 +1070,7 @@ function buildGrid() {
       e.target.value = '';
     });
   });
+  try{ pcWire(); pcRenderAll(true); }catch(e){ console.error(e); }
 }
 
 function matchExt(name, accept) {
@@ -1068,6 +1102,116 @@ function noteMerge(label, mg, fname){
   if(mg.older.length)    msgs.push(`${fname||'이 파일'}의 ${fm(mg.older)}는 이미 더 나중 파일 값이 있어 쓰지 않았어요`);
   if(msgs.length) showToast('📎 '+label+': '+msgs.join(' · '));
 }
+// ★2026-11-23 광고 파일 매체 = 해트케 구글 형식. 파일을 떨어뜨리면 그 안의 내용이 「날짜 · 구분 · 광고비 · 구매 · 매출」 행으로 보인다.
+//   · 구분: 해트케=제품(캠페인 이름으로 분류, 워크북과 같은 규칙) / 그 외=파워링크·쇼핑검색·브랜드검색, 틱톡·SPC, 나머지는 「전체」
+//   · 행은 보기 좋게 묶은 것일 뿐 — 아래 캠페인 행(엑셀 RD로 가는 값)은 그대로 두고, 행의 숫자를 고치면 같은 비율로 나눠 담는다.
+//   · 날짜를 바꾸면 그 묶음이 옮겨 가고, ✕는 그 묶음을 지운다. 「+ 추가」는 파일 없이 직접 넣을 때.
+const PC_KEYS = ['meta', 'tiktok', 'naver', 'gfa', 'kakao', 'criteo'];
+const PC_SRC = { '파워링크': ['naversa', 'sa'], '쇼핑검색': ['navershopping', 'sa'], '브랜드검색': ['naverbs', 'bs'], 'SPC': ['SPC', 'vid'] };
+function pcFmt(v, dec){ const n = Number(v) || 0; return dec ? (Math.round(n * 100) / 100).toLocaleString() : Math.round(n).toLocaleString(); }
+function pcGroup(key, r){
+  if(currentBrand === 'hattke'){ try{ return _hattkeProduct(String(r.campaign || '')); }catch(e){} }
+  const m = { naversa: '파워링크', navershopping: '쇼핑검색', naverbs: '브랜드검색', TK: '틱톡', SPC: 'SPC' };
+  return m[r.source] || '전체';
+}
+function pcGroups(key){
+  const map = {};
+  (state.processed[key] || []).forEach(r => {
+    const g = pcGroup(key, r), k = r.date + '|' + g;
+    const x = map[k] = map[k] || { date: r.date, g: g, cost: 0, buy: 0, rev: 0, rows: [] };
+    x.cost += +r.cost || 0; x.buy += +r.buy || 0; x.rev += +r.rev || 0; x.rows.push(r);
+  });
+  const ord = g => { const i = (typeof HT_ORDER !== 'undefined') ? HT_ORDER.indexOf(g) : -1; return i < 0 ? 99 : i; };
+  return Object.values(map).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : (currentBrand === 'hattke' ? ord(a.g) - ord(b.g) : (a.g < b.g ? -1 : 1)));
+}
+function pcNewRow(key, date, g){
+  const cfg = PLATFORMS[key] || {}, any = (state.processed[key] || [])[0] || {};
+  const dflt = { naver: ['naversa', 'sa'], tiktok: ['TK', 'vid'] }[key] || [key, ''];
+  let src = cfg.source === 'auto' ? (any.source || dflt[0]) : cfg.source, med = cfg.medium === 'auto' ? (any.medium || dflt[1]) : cfg.medium;
+  if(currentBrand !== 'hattke' && PC_SRC[g]){ src = PC_SRC[g][0]; med = PC_SRC[g][1]; }
+  return { date: date, source: src, medium: med, campaign: currentBrand === 'hattke' ? g : '직접입력', cost: 0, buy: 0, rev: 0 };
+}
+function pcSetTotal(key, date, g, field, val){   // 그 묶음의 광고비/구매/매출 합계를 val로 — 같은 비율로 나눠 담는다
+  const grp = pcGroups(key).find(x => x.date === date && x.g === g);
+  let rows = grp ? grp.rows : [];
+  const dec = field === 'buy' ? 2 : 0, rd = v => dec ? Math.round(v * 100) / 100 : Math.round(v);
+  if(!rows.length){ const r = pcNewRow(key, date, g); (state.processed[key] = state.processed[key] || []).push(r); rows = [r]; }
+  const old = rows.reduce((t, r) => t + (+r[field] || 0), 0);
+  if(old > 0){
+    rows.forEach(r => { r[field] = rd((+r[field] || 0) * val / old); });
+    const diff = rd(rd(val) - rows.reduce((t, r) => t + r[field], 0));          // 반올림 차이는 가장 큰 행에
+    if(diff) rows.slice().sort((a, b) => b[field] - a[field])[0][field] = rd(rows.slice().sort((a, b) => b[field] - a[field])[0][field] + diff);
+  } else rows[0][field] = rd(val);
+}
+function pcMoveDate(key, from, to, g){
+  const all = state.processed[key] || [];
+  const had = pcGroups(key).some(x => x.date === to && x.g === g);
+  state.processed[key] = all.filter(r => !(r.date === to && pcGroup(key, r) === g)).map(r => (r.date === from && pcGroup(key, r) === g ? Object.assign(r, { date: to }) : r));
+  if(had) showToast('📎 ' + to.slice(5) + ' ' + g + '에 있던 값은 이 값으로 바꿨어요');
+}
+function pcDone(key){
+  const rows = state.processed[key] || [];
+  try{ if(rows.length){ setFileSummary(key, rows); document.getElementById('dz-' + key)?.classList.add('loaded'); } else { setStat(key, '대기 중', ''); document.getElementById('dz-' + key)?.classList.remove('loaded'); } }catch(e){}
+  pcRender(key, true);
+}
+function pcAdd(key){
+  const d = (typeof getFrom === 'function' && getFrom()) || yesterday();
+  const sel = document.getElementById('pa-' + key);
+  const want = currentBrand === 'hattke' ? ((sel && sel.value) || '압력이불') : (key === 'naver' ? '파워링크' : '전체');
+  const r = pcNewRow(key, d, want), g = pcGroup(key, r);
+  if(pcGroups(key).some(x => x.date === d && x.g === g)){ showToast('이미 ' + d.slice(5) + ' ' + g + ' 행이 있어요 — 표에서 바로 고치세요'); return; }
+  (state.processed[key] = state.processed[key] || []).push(r);
+  pcDone(key);
+}
+function pcRow(key, x){
+  return '<div class="mr" data-k="' + key + '" data-d="' + x.date + '" data-g="' + String(x.g).replace(/"/g, '') + '">'
+    + '<div class="mf"><input type="date" data-f="date" value="' + x.date + '"></div>'
+    + '<div class="mf"><input type="text" data-f="g" value="' + String(x.g).replace(/"/g, '') + '" readonly></div>'
+    + '<div class="mf"><input type="text" inputmode="decimal" class="numfmt" data-f="cost" value="' + pcFmt(x.cost) + '"></div>'
+    + '<div class="mf"><input type="text" inputmode="decimal" class="numfmt" data-f="buy" value="' + pcFmt(x.buy, 1) + '"></div>'
+    + '<div class="mf"><input type="text" inputmode="decimal" class="numfmt" data-f="rev" value="' + pcFmt(x.rev) + '"></div>'
+    + '<button class="rm-btn" data-del="1" title="이 날짜·구분 행 지우기">✕</button></div>';
+}
+function pcRender(key, force){
+  const box = document.getElementById('pr-' + key); if(!box) return;
+  const gs = pcGroups(key), sig = currentBrand + JSON.stringify(gs.map(x => [x.date, x.g, x.cost, x.buy, x.rev]));
+  if(!force && box._sig === sig) return;
+  if(!force && box.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;   // 입력 중엔 다시 그리지 않는다
+  box._sig = sig;
+  const sel = document.getElementById('pa-' + key);
+  if(sel){
+    const hat = currentBrand === 'hattke';
+    sel.style.display = hat ? '' : 'none';
+    if(hat && !sel.options.length && typeof HT_ORDER !== 'undefined') sel.innerHTML = HT_ORDER.map(p => '<option>' + p + '</option>').join('');
+  }
+  box.innerHTML = !gs.length ? '' :
+    '<div class="pc-colhdr"><span style="width:125px">날짜</span><span style="width:110px">' + (currentBrand === 'hattke' ? '제품' : '구분') + '</span>'
+    + '<span style="width:110px">광고비</span><span style="width:110px">구매</span><span style="width:110px">매출</span></div>'
+    + gs.map(x => pcRow(key, x)).join('');
+}
+function pcRenderAll(force){ PC_KEYS.forEach(k => pcRender(k, force)); }
+function pcWire(){
+  const grid = document.getElementById('platform-grid');
+  if(!grid || grid._pcWired) return;
+  grid._pcWired = true;
+  grid.addEventListener('change', e => {
+    const el = e.target, row = el.closest && el.closest('.mr[data-k]'); if(!row || !el.dataset.f) return;
+    const key = row.dataset.k, d = row.dataset.d, g = row.dataset.g, f = el.dataset.f;
+    if(f === 'cost' || f === 'buy' || f === 'rev') pcSetTotal(key, d, g, f, Number(String(el.value).replace(/[^0-9.-]/g, '')) || 0);
+    else if(f === 'date' && el.value && el.value !== d) pcMoveDate(key, d, el.value, g);
+    else return;
+    pcDone(key);
+  });
+  grid.addEventListener('click', e => {
+    const row = e.target.closest && e.target.closest('.mr[data-k]');
+    if(!row || !e.target.dataset || !e.target.dataset.del) return;
+    const key = row.dataset.k, d = row.dataset.d, g = row.dataset.g;
+    state.processed[key] = (state.processed[key] || []).filter(r => !(r.date === d && pcGroup(key, r) === g));
+    pcDone(key);
+  });
+  setInterval(() => { try{ pcRenderAll(false); }catch(e){} }, 1200);   // 파일·수집·저장값 불러오기로 값이 바뀌면 행도 따라 바뀐다
+}
+
 function dispatch(key, files) {
   files = [...files].sort((a,b)=>(a.lastModified||0)-(b.lastModified||0));   // 오래된 것부터 → 나중 파일이 이긴다
   if      (key === 'naver')  handleNaverFiles(files);
@@ -1370,6 +1514,7 @@ function addSSSlot(){
     <input type="text" inputmode="numeric" class="ss-num numfmt" id="ssrev-${id}" placeholder="매출(원)" title="스마트스토어 매출 — 직접 입력·수정" oninput="ssManual('${id}')">
     <span class="ss-stat" id="ssps-${id}">대기</span>
     <button class="rm-btn" onclick="removeSSSlot('${id}')">✕</button>
+    <div class="ss-items" id="ssit-${id}"></div>
   `;
   container.appendChild(el);
   const dz=el.querySelector('.ss-drop'), fi=el.querySelector('input[type=file]');
@@ -1408,8 +1553,24 @@ function ssManual(id){   // 입력칸 → 저장 값
   const dz=document.getElementById('ssdz-'+id), st=document.getElementById('ssps-'+id);
   if(dz){ dz.classList.add('loaded'); dz.querySelector('span')?.remove(); dz.insertAdjacentHTML('afterbegin',`<span>✏ 구매 ${d.buy}건</span>`); }
   if(st){ st.textContent='✏ '+Math.round(d.rev).toLocaleString()+'원'; st.className='ss-stat ok'; }
+  d.manual=true; ssItems(id);
 }
 
+// ★2026-11-23 스마트스토어도 해트케 구글 형식: 파일을 떨어뜨리면 그 안의 상품별 내용(구매·매출)이 슬롯 아래에 보인다.
+function ssItems(id){
+  const box = document.getElementById('ssit-' + id); if(!box) return;
+  const d = state.ssData[id], it = d && d.items;
+  if(!it || !it.length){ box.innerHTML = ''; return; }
+  const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  const hat = _ssSplit();
+  const tb = it.reduce((a, x) => a + x.buy, 0), tr = it.reduce((a, x) => a + x.rev, 0);
+  box.innerHTML = '<details' + (it.length <= 10 ? ' open' : '') + '><summary>📋 파일 내용 ' + it.length + '개 상품 · 구매 ' + tb.toLocaleString() + ' · 매출 ' + Math.round(tr).toLocaleString() + '원'
+    + (d.manual ? ' · ✏ 위 구매·매출 칸은 직접 고친 값' : '') + '</summary>'
+    + '<table class="ss-it"><thead><tr><th>상품명</th>' + (hat ? '<th>제품</th>' : '') + '<th>구매</th><th>매출</th></tr></thead><tbody>'
+    + it.map(x => '<tr><td title="' + esc(x.name) + '">' + esc(String(x.name).slice(0, 46)) + '</td>' + (hat ? '<td>' + esc(x.p || '?') + '</td>' : '')
+        + '<td class="r">' + Number(x.buy).toLocaleString() + '</td><td class="r">' + Math.round(x.rev).toLocaleString() + '</td></tr>').join('')
+    + '</tbody></table></details>';
+}
 function removeSSSlot(id){
   document.getElementById(id)?.remove();
   delete state.ssData[id];
@@ -1427,7 +1588,7 @@ async function handleSSFile(id,file){
   try{
     const fm=String(file.name||'').match(/sales_(\d{8})-(\d{8})/);
     if(fm && fm[1]!==fm[2]){
-      st.textContent='⚠ 여러 날짜'; st.className='ss-stat err'; state.ssData[id]=null;
+      st.textContent='⚠ 여러 날짜'; st.className='ss-stat err'; state.ssData[id]=null; ssItems(id);
       showToast(`🚨 스마트스토어 파일이 여러 날짜(${fm[1].slice(4,6)}/${fm[1].slice(6)}~${fm[2].slice(4,6)}/${fm[2].slice(6)})로 받아졌어요.
 여러 날짜로 받으면 값이 합쳐져 날짜별로 쓸 수 없어요 → 하루씩 받아 주세요. 이 파일은 쓰지 않았어요.`);
       return;
@@ -1444,7 +1605,7 @@ async function handleSSFile(id,file){
     const _ix={}, _miss=[];
     Object.keys(SS_COLS).forEach(k=>{ _ix[k]=findColOrDef(headers,SS_COLS[k],-1); if(_ix[k]===-1) _miss.push(SS_COL_KOR[k]+'('+SS_COLS[k][0]+')'); });
     if(_miss.length){
-      st.textContent='⚠ 형식 바뀜'; st.className='ss-stat err'; state.ssData[id]=null;
+      st.textContent='⚠ 형식 바뀜'; st.className='ss-stat err'; state.ssData[id]=null; ssItems(id);
       showToast('🚨 스마트스토어 파일 형식이 바뀐 것 같아요 — 못 찾은 열: '+_miss.join(', ')
         +'\n파일의 열: '+headers.filter(Boolean).join(', ')+'\n→ 이 파일은 쓰지 않았어요. 열 이름이 바뀐 거라면 알려 주세요.');
       return;
@@ -1458,7 +1619,7 @@ async function handleSSFile(id,file){
       for(let i=hi+1;i<rows.length;i++){ const d=cellToDateStr(rows[i][iDate]); if(d) ds.add(d); }
       if(ds.size>1){
         const a=[...ds].sort();
-        st.textContent='⚠ 여러 날짜'; st.className='ss-stat err'; state.ssData[id]=null;
+        st.textContent='⚠ 여러 날짜'; st.className='ss-stat err'; state.ssData[id]=null; ssItems(id);
         showToast(`🚨 스마트스토어 파일에 날짜가 ${ds.size}개(${a[0].slice(5)}~${a[a.length-1].slice(5)}) 섞여 있어요.
 하루씩 받아 주세요. 이 파일은 쓰지 않았어요.`);
         return;
@@ -1469,7 +1630,7 @@ async function handleSSFile(id,file){
     const ssSplit=!!getBrand().ssSplit;   // 해트케=제품별(아크넨/베개/이불) 분리
     const prods={}; HT_ORDER.forEach(p=>prods[p]={buy:0,rev:0});   // ★2026-11-12 제품표 순서
     const ssNew=[];   // 제품표에 없는 해트케 상품(새 상품)
-    let totalBuy=0,totalRev=0,cnt=0,netSum=0;
+    let totalBuy=0,totalRev=0,cnt=0,netSum=0; const items=[];   // 파일 속 상품 내용(화면에 보여 준다)
     for(let i=hi+1;i<rows.length;i++){
       const row=rows[i];
       const name=String(row[iName]??'');
@@ -1479,13 +1640,14 @@ async function handleSSFile(id,file){
       const b=toNum(row[iBuy])-toNum(row[iRef]);
       const r=toNum(row[iRev])-toNum(row[iRfR]);
       totalBuy+=b; totalRev+=r;
+      items.push({name:String(name).slice(0,70), buy:b, rev:r, p:ssSplit?_htProdByName(name):null});
       if(ssSplit){ const p=_htProdByName(name); if(prods[p]){ prods[p].buy+=b; prods[p].rev+=r; } else if(b||r) ssNew.push(name); }  // 상품명→제품 분류
     }
     if(cnt===0){
       const bl=({granny:'그래니',basetune:'베이스튠',hattke:'압력이불'})[currentBrand]||'그래니';
       st.textContent=bl+' 없음'; st.className='ss-stat err';
       showToast(`스마트스토어: "${bl}" 포함 상품 없음\n확인: ${rows.slice(hi+1,hi+4).map(r=>r[iName]).join(', ')}`);
-      state.ssData[id]=null; return;
+      state.ssData[id]=null; ssItems(id); return;
     }
     const _dinp=document.getElementById('ssdate-'+id);
     if(fileDate && _dinp && _dinp.value!==fileDate){   // 파일 안의 날짜가 우선 — 날짜 칸이 다르면 파일 날짜로 맞춘다
@@ -1495,13 +1657,13 @@ async function handleSSFile(id,file){
     const date=fileDate||_dinp?.value||getFrom();
     if(iNet!==-1 && Math.abs(totalRev-netSum)>1)   // 검산: 총−환불금액이 판매금액(순)과 다르면 알린다(값은 총−환불금액 그대로)
       showToast(`⚠ 스마트스토어 검산: 판매금액(총)−환불금액 ${Math.round(totalRev).toLocaleString()}원 ≠ 판매금액(순) ${Math.round(netSum).toLocaleString()}원 — 확인해 주세요`);
-    state.ssData[id]={date,buy:totalBuy,rev:totalRev, prods:ssSplit?prods:null};
+    state.ssData[id]={date,buy:totalBuy,rev:totalRev, prods:ssSplit?prods:null, items:items};
     if(ssNew.length) showToast('⚠ 스마트스토어 새 상품(제품별 분류 안 됨, 합계엔 포함):\n'+ssNew.join('\n')+'\n→ 수집/해트케_제품표.json에 추가 필요');
     dz.classList.add('loaded');
     dz.querySelector('span')?.remove();
     dz.insertAdjacentHTML('afterbegin',`<span>✅ 구매 ${totalBuy}건</span>`);
     st.textContent=totalRev.toLocaleString()+'원'; st.className='ss-stat ok';
-    ssFill(id);
+    ssFill(id); ssItems(id);
   }catch(e){st.textContent='오류';st.className='ss-stat err';console.error(e);}
 }
 
@@ -2161,7 +2323,7 @@ function saveData(silent){
   const ssByDate={};
   // ★prods(해트케 스마트스토어 제품별 매출) 반드시 함께 저장 — 안 그러면 재로드 시 사라져
   //   RD_market '스마트스토어' 행(buildHattkeMarketRows 3885~)이 통째로 빠짐(2026-07-21 버그픽스).
-  Object.values(state.ssData).forEach(d=>{ if(d&&d.date){(ssByDate[d.date]=ssByDate[d.date]||[]).push({buy:d.buy,rev:d.rev, prods:d.prods||null});} });
+  Object.values(state.ssData).forEach(d=>{ if(d&&d.date){(ssByDate[d.date]=ssByDate[d.date]||[]).push({buy:d.buy,rev:d.rev, prods:d.prods||null, items:d.items||null});} });
   saveSideSheets();   // 옵션/주문/환불·제품별매출 시트 동기화+저장 먼저 (state 최신화)
 
   // 저장할 날짜 모으기
@@ -2275,11 +2437,11 @@ function restoreSSSlots(ssArr, date, append){
     const id='ss'+ssCnt;
     const dInp=document.getElementById('ssdate-'+id); if(dInp) dInp.value=date;
     if(s){
-      state.ssData[id]={date,buy:s.buy,rev:s.rev, prods:s.prods||null};   // ★prods 복원(해트케 제품별 매출)
+      state.ssData[id]={date,buy:s.buy,rev:s.rev, prods:s.prods||null, items:s.items||null};   // ★prods 복원(해트케 제품별 매출)
       const dz=document.getElementById('ssdz-'+id), st=document.getElementById('ssps-'+id);
       if(dz){dz.classList.add('loaded'); dz.querySelector('span')?.remove(); dz.insertAdjacentHTML('afterbegin',`<span>✅ 구매 ${s.buy}건</span>`);}
       if(st){st.textContent=(s.rev||0).toLocaleString()+'원'; st.className='ss-stat ok';}
-      ssFill(id);
+      ssFill(id); ssItems(id);
     }
   });
 }
@@ -7517,17 +7679,17 @@ function abClearHistory(){
   //  ph = COLLECT_PHASES 의 매체명(스텝명)과 1:1. 이 매핑으로 '브랜드가 실제 수집하는 매체'만 컬럼에 띄운다.
   //  (2026-07-21) 그래니엔 GFA 없음 → GFA 컬럼 안 뜸. 베이스튠엔 크리·올영 없음 등. 미운영 매체 ❌ 방지.
   const DASH_MEDIA=[
-    {label:'구글',   ph:'구글',         g:s=>s.gdn},
-    {label:'메타',   ph:'메타',         g:s=>s.processed&&s.processed.meta},
-    {label:'틱톡',   ph:'틱톡',         g:s=>s.processed&&s.processed.tiktok},
-    {label:'네이버', ph:'네이버 SA',    g:s=>s.processed&&s.processed.naver},
-    {label:'GFA',    ph:'네이버 GFA',   g:s=>s.processed&&s.processed.gfa},
-    {label:'카카오', ph:'카카오',       g:s=>s.processed&&s.processed.kakao},
-    {label:'크리',   ph:'크리테오',     g:s=>s.processed&&s.processed.criteo},
-    {label:'카페24', ph:'카페24',       g:s=>s.c24},
-    {label:'쿠팡',   ph:'쿠팡',         g:s=>s.cp, gg:'coupang'},
-    {label:'스토어', ph:'스마트스토어', g:s=>s.ss, gg:'ss'},
-    {label:'올영',   ph:'올리브영',     g:s=>s.oy},
+    {label:'구글', imp:['cost'],   ph:'구글',         g:s=>s.gdn},
+    {label:'메타', imp:['cost'],   ph:'메타',         g:s=>s.processed&&s.processed.meta},
+    {label:'틱톡', imp:['cost'],   ph:'틱톡',         g:s=>s.processed&&s.processed.tiktok},
+    {label:'네이버', imp:['cost'], ph:'네이버 SA',    g:s=>s.processed&&s.processed.naver},
+    {label:'GFA', imp:['cost'],    ph:'네이버 GFA',   g:s=>s.processed&&s.processed.gfa},
+    {label:'카카오', imp:['cost'], ph:'카카오',       g:s=>s.processed&&s.processed.kakao},
+    {label:'크리', imp:['cost'],   ph:'크리테오',     g:s=>s.processed&&s.processed.criteo},
+    {label:'카페24', imp:['rev'], ph:'카페24',       g:s=>s.c24},
+    {label:'쿠팡', imp:['cost','rev'],   ph:'쿠팡',         g:s=>s.cp, gg:'coupang'},
+    {label:'스토어', imp:['rev'], ph:'스마트스토어', g:s=>s.ss, gg:'ss'},
+    {label:'올영', imp:['rev'],   ph:'올리브영',     g:s=>s.oy},
   ];
   // 현재 브랜드가 실제 운영(=수집)하는 매체만. COLLECT_PHASES(단일 출처)에서 파생 → 매체 추가/삭제해도 자동 동기화.
   function mediaForBrand(){
@@ -7583,11 +7745,54 @@ function abClearHistory(){
     }
     if(!vals.length) return null;
     const one = vals.length<CD_MIN_SAMPLES;
-    return {v: one?vals[0]:cdMedian(vals),
-            lab: one?days[0]:('최근 '+vals.length+'일 중앙값'),
+    return {v: one?vals[0]:(vals.reduce(function(a,b){return a+b;},0)/vals.length),   // ★2026-11-23 평균(전엔 중앙값)
+            lab: one?days[0]:('최근 '+vals.length+'일 평균'), n: vals.length,
             p1: vals[0], p1d: days[0], one: one};
   }
   function cdN(v){ return Math.round(v).toLocaleString(); }
+  // ★2026-11-23 칸 안에 변동 수치를 바로 보여준다 — 중요한 지표(광고 매체=광고비, 마켓=매출)가 튀면 빨간 숫자, 덜 중요하면 ★(마우스 올림)
+  //   누르면 「광고비 : 최근3일 평균 100,000원 / 전일 200,000원 / 오늘 10,000원」 (광고비·매출 둘 다 문제면 둘 다)
+  function cdMetric(s, d, m, f){
+    const val=function(ps, pd){
+      const a=m.g(ps);
+      if(!Array.isArray(a) || !a.length) return null;
+      let v=cdSum(a, f);
+      if(m.gg && f==='rev') v-=cdGgSum(ps.gagumae, pd, m.gg, 'amt');
+      return v>0 ? v : null;
+    };
+    const lab = f==='cost' ? '광고비' : ((m.gg)?'매출(가구매 제외)':'매출');
+    const cur = s ? val(s, d) : null;
+    const base = cdBase(d, val);
+    if(!base) return null;                                  // 비교할 지난 값이 없다
+    const pd1=cdShift(d,1), ps1=slice(pd1), prev = ps1 ? val(ps1, pd1) : null;
+    const big = Math.max(cur||0, base.v) >= CD_DIFF_FLOOR;
+    const rr = cur!=null ? (cur-base.v)/base.v : 0;
+    const flagged = cur!=null && big && Math.abs(rr) >= CD_DIFF_PCT/100;
+    return {f:f, lab:lab, cur:cur, avg:base.v, huge:(flagged && (rr>=1 || rr<=-0.6)), avgLab:(base.one ? (String(base.lab).slice(5)+' 하루') : ('최근'+base.n+'일 평균')),
+            prev:prev, flagged:flagged, imp:(m.imp||[]).indexOf(f)>=0};
+  }
+  function cdWon(v){ return v==null ? '없음' : (cdN(v)+'원'); }
+  function cdPopHtml(items){      // 누르면 뜨는 설명 — 숫자가 눈에 띄게
+    return items.map(function(x){
+      return '<div class="cd-pl"><b class="cd-pt">'+x.lab+'</b> : '+x.avgLab+' <b>'+cdWon(x.avg)+'</b> / 전일 <b>'+cdWon(x.prev)+'</b> / 오늘 <b class="'+(x.cur==null?'cd-bad':(x.cur>=x.avg?'cd-up':'cd-dn'))+'">'+cdWon(x.cur)+'</b></div>';
+    }).join('');
+  }
+  function cdPopText(items){      // ★ 칸에 마우스를 올렸을 때(title)
+    return items.map(function(x){
+      return x.lab+' : '+x.avgLab+' '+cdWon(x.avg)+' / 전일 '+cdWon(x.prev)+' / 오늘 '+cdWon(x.cur);
+    }).join('&#10;');
+  }
+  const CD_POP={};   // 「날짜|매체」 → 설명 HTML (칸을 누르면 꺼내 쓴다)
+  function cdShowPop(td){
+    const k=td.getAttribute('data-ci'); if(!k || !CD_POP[k]) return;
+    let pop=document.getElementById('cd-pop');
+    if(!pop){ pop=document.createElement('div'); pop.id='cd-pop'; document.body.appendChild(pop); }
+    pop.innerHTML='<div class="cd-ph">'+k.split('|')[0].slice(5)+' · '+k.split('|')[1]+'<button onclick="document.getElementById(\'cd-pop\').style.display=\'none\'">✕</button></div>'+CD_POP[k];
+    pop.style.display='block';
+    const r=td.getBoundingClientRect(), w=pop.offsetWidth, h=pop.offsetHeight;
+    pop.style.left=Math.max(8, Math.min(window.innerWidth-w-8, r.left+r.width/2-w/2))+'px';
+    pop.style.top=(r.bottom+8+h>window.innerHeight ? Math.max(8, r.top-h-8) : r.bottom+8)+'px';
+  }
   function cdCell(o){
     if(!o) return '<span style="color:#cbd5e1">—</span>';
     const up=o.cur>=o.base, col=up?'#dc2626':'#2563eb', pc=Math.round(Math.abs(o.r)*100);
@@ -7828,34 +8033,8 @@ function abClearHistory(){
         + '<div class="cd-alert-s">수집값이 실제보다 적다는 뜻입니다 → 스마트스토어/쿠팡 재수집 후 다시 확인하세요.'
         + ' 이대로 내보내면 그 값은 0으로 나갑니다.</div></div>';
     }
-    h+='<div class="cd-cap">'+bl+' · 값 있으면 ✅ 없으면 ❌ · <b style="color:#b45309">★=최근 '+CD_BASE_DAYS+'일 기준 '+CD_DIFF_PCT+'% 이상 변동 → 수치는 위 「변동 확인」 표</b> · 날짜 클릭=폼에 불러오기</div>';
+    h+='<div class="cd-cap">'+bl+' · 값 있으면 ✅ 없으면 ❌(누르면 최근 값) · <b style="color:#b45309">★=변동(마우스 올리면 수치)</b> · <b style="color:#b91c1c">빨간 숫자=중요한 지표(광고 매체는 광고비, 마켓은 매출)가 크게 튐 — 2배↑ 또는 60%↓(누르면 자세히)</b> · 기준=최근 '+CD_BASE_DAYS+'일 평균 대비 '+CD_DIFF_PCT+'%↑ · 날짜 클릭=폼에 불러오기</div>';
     if(!ds.length){ body.innerHTML=h+'<div class="cd-empty">표시할 날짜가 없어요</div>'; return; }
-    // ★2026-11-23 변동이 있으면 광고비·매출 수치를 표로 바로 보여준다(예전엔 ★ 위에 마우스를 올려야 보였음)
-    const _dv=[];
-    ds.forEach(d=>{ const s=slice(d); if(!s) return;
-      MED.forEach(m=>{ if(!has(m.g(s))) return;
-        const o=cdDiffObjs(s, d, m);
-        if(o.cost||o.rev) _dv.push({d:d, label:m.label, cost:o.cost, rev:o.rev}); }); });
-    if(_dv.length){
-      // ★2026-11-23(2차) 한 줄 = 변동 하나. 날짜·매체·구분(광고비/매출)·기준 → 현재·변화. 최근 날짜가 위.
-      const _rows=[];
-      _dv.slice().reverse().forEach(x=>{
-        [['cost','광고비','c'],['rev','매출','r']].forEach(k=>{
-          const o=x[k[0]]; if(!o) return;
-          const up=o.cur>=o.base, pc=Math.round(Math.abs(o.r)*100);
-          const tip=(o.baseLab.indexOf('중앙값')>=0?'기준='+o.baseLab:'기준='+o.baseLab+' 하루 값')+(o.p1>0?' · 전일('+String(o.p1d).slice(5)+') '+cdN(o.p1):'')+(o.gg?' · 가구매 제외':'');
-          _rows.push({d:x.d, html:'<tr title="'+tip+'"><td class="cd-dt" data-d="'+x.d+'">'+x.d.slice(5)+'</td><td><b>'+x.label+'</b></td>'
-            +'<td><span class="cd-k cd-k-'+k[2]+'">'+k[1]+(o.gg?'*':'')+'</span></td>'
-            +'<td class="cd-nb">'+cdN(o.base)+'</td><td class="cd-ar">→</td><td class="cd-nc">'+cdN(o.cur)+'</td>'
-            +'<td><span class="cd-pc '+(up?'up':'dn')+'">'+(up?'▲':'▼')+pc+'%</span></td></tr>'});
-        });
-      });
-      let _pd='';
-      h+='<div class="cd-dv"><div class="cd-dvh">⚠ 변동 확인 '+_rows.length+'건 <span>기준 = 최근 '+CD_BASE_DAYS+'일 중앙값(값이 하루뿐이면 그 날) 대비 '+CD_DIFF_PCT+'% 이상 · 매출* = 가구매 제외 · 날짜 누르면 폼에 불러옴</span></div>'
-        +'<table class="cd-dvt"><thead><tr><th>날짜</th><th>매체</th><th>구분</th><th class="cd-nb">기준(원)</th><th></th><th class="cd-nc">현재(원)</th><th>변화</th></tr></thead><tbody>'
-        +_rows.map(r=>{ const sep=(_pd&&_pd!==r.d)?' class="cd-sep"':''; _pd=r.d; return r.html.replace('<tr ','<tr'+sep+' '); }).join('')
-        +'</tbody></table></div>';
-    }
     h+='<table><thead><tr><th>날짜</th>';
     MED.forEach(m=>h+='<th>'+m.label+'</th>');
     h+='</tr></thead><tbody>';
@@ -7863,23 +8042,42 @@ function abClearHistory(){
       const s=slice(d);
       h+='<tr><td class="cd-dt" data-d="'+d+'">'+d.slice(5)+'</td>';
       MED.forEach(m=>{
-        const cur=s?m.g(s):null, ok=has(cur);
-        let cls=ok?'cd-ok':'cd-no', txt=ok?'✅':'❌', tip='';
+        const cur=s?m.g(s):null, ok=has(cur), ck=d+'|'+m.label;
+        let cls=ok?'cd-ok':'cd-no', txt=ok?'✅':'❌', tip='', at='';
+        const mets=[cdMetric(s, d, m, 'cost'), cdMetric(s, d, m, 'rev')].filter(Boolean);
         if(ok){
-          const msg=cdDiffMsg(s, d, m);
-          if(msg){ const big=msg.includes('‼'); cls=big?'cd-diff cd-big':'cd-diff'; txt=big?'‼':'★'; tip=' title="'+msg.replace(/"/g,'')+'"'; }
+          const fl=mets.filter(x=>x.flagged);
+          if(fl.length){
+            const hot=fl.filter(x=>x.imp && x.huge);   // 중요한 지표(광고 매체=광고비, 마켓=매출)가 크게 튄 것만 빨강 — 나머지는 ★
+            // 둘 다 문제면 둘 다 보여준다(중요한 것 먼저)
+            const order=fl.slice().sort((a,b)=>(b.imp?1:0)-(a.imp?1:0));
+            if(hot.length){
+              cls='cd-hot'; at=' data-ci="'+ck+'"'; tip=' title="누르면 자세히"';
+              txt=hot.map(x=>'<div class="cd-hl"><span>'+x.lab.replace('(가구매 제외)','')+'</span> '+(x.cur>=x.avg?'▲':'▼')+'<b>'+cdN(x.cur)+'</b></div>').join('');
+              CD_POP[ck]=cdPopHtml(order);
+            } else {
+              cls='cd-diff'; txt='★'; tip=' title="'+cdPopText(order).replace(/"/g,'')+'"';
+            }
+          }
+        } else {
+          // 값이 없는 칸 — 누르면 그 매체에서 중요한 지표의 최근 값을 보여준다(오늘 없음)
+          const im=mets.filter(x=>x.imp);
+          if(im.length){ at=' data-ci="'+ck+'"'; tip=' title="값이 없어요 — 누르면 최근 값"'; CD_POP[ck]=cdPopHtml(im); }
         }
-        h+='<td class="'+cls+'"'+tip+'>'+txt+'</td>';
+        h+='<td class="'+cls+'"'+tip+at+'>'+txt+'</td>';
       });
       h+='</tr>';
     });
     h+='</tbody></table>';
     body.innerHTML=h;
     body.querySelectorAll('.cd-dt').forEach(td=>td.onclick=()=>{ try{ loadDateIntoForm(td.getAttribute('data-d')); }catch(e){} });
+    body.querySelectorAll('td[data-ci]').forEach(td=>td.onclick=function(ev){ ev.stopPropagation(); cdShowPop(td); });
     if(_neg.length && isCollapsed()) setCollapsed(false);   // 접어놨어도 사고 나면 펴서 보여준다
     try{ cdMarkInputs(); cdMarkSS(); }catch(e){}   // 입력칸 급변 표시도 같은 폴링에 얹음
   }
   window.renderCollectDashboard=render;
+  document.addEventListener('click',function(e){ const p=document.getElementById('cd-pop'); if(p && !e.target.closest('#cd-pop')) p.style.display='none'; });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ const p=document.getElementById('cd-pop'); if(p) p.style.display='none'; } });
 
   // ── 접기 상태 (2026-07-20) ──
   //  · 사용자가 직접 접으면 localStorage에 기억 → 새로고침해도 접힌 채로.
@@ -7919,6 +8117,10 @@ function abClearHistory(){
      +'#collect-dashboard td.cd-dt:hover{text-decoration:underline}'
      +'.cd-ok{color:#16a34a}.cd-no{color:#dc2626;background:#fef2f2}'
      +'.cd-diff{color:#b45309;background:#fffbeb;font-weight:800;cursor:help}'
+     +'.cd-hot{background:#fef2f2;color:#b91c1c;font-weight:800;cursor:pointer;line-height:1.25;border:1px solid #fca5a5}'
+     +'.cd-hot:hover{background:#fee2e2}'
+     +'.cd-hl span{font-size:10px;font-weight:600;color:#7f1d1d;margin-right:2px}.cd-hl b{font-size:15px;font-variant-numeric:tabular-nums}'
+     +'#collect-dashboard td.cd-no[data-ci]{cursor:pointer}'
      +'.cd-dv{margin:2px 2px 8px;border:2px solid #f59e0b;border-radius:8px;background:#fff;overflow:hidden}'
      +'.cd-dvh{padding:6px 12px;font-weight:800;font-size:13px;color:#92400e;background:#fef3c7}'
      +'.cd-dvh span{font-weight:500;font-size:10.5px;color:#a16207;margin-left:8px}'
