@@ -700,7 +700,7 @@ function switchBrand(brand){
   document.querySelectorAll('.brand-tab').forEach(b=>b.classList.remove('active'));
   document.getElementById('brand-'+brand)?.classList.add('active');
   // 상태 초기화
-  Object.assign(state,{processed:{meta:[],tiktok:[],criteo:[],naver:[],gfa:[],kakao:[]},naverFileCount:0,ssData:{},allRows:[],gagumae:[]});
+  Object.assign(state,{processed:{meta:[],tiktok:[],criteo:[],naver:[],gfa:[],kakao:[]},naverFileCount:0,ssData:{},allRows:[],gagumae:[],_fileTs:{}});
   ssCnt=0; c24Cnt=0; cpCnt=0; gdnCnt=0; oyCnt=0;
   // 플랫폼 카드 재빌드
   document.getElementById('platform-grid').innerHTML='';
@@ -990,14 +990,14 @@ function buildGrid() {
   grid.innerHTML = '';   // ★2026-10-27 두 번 불려도 카드가 두 벌 쌓이지 않게(웹판 첫 화면에서 브랜드 복원과 겹쳐 중복됐음)
   Object.entries(PLATFORMS).forEach(([key, cfg]) => {
     const accept = key==='gfa' ? '.zip' : '.xlsx,.xls,.csv';
-    const multiAttr = cfg.multi ? 'multiple' : '';
+    const multiAttr = 'multiple';   // ★2026-11-23 전 매체 여러 파일(날짜 겹치면 나중 파일 값)
     const card = document.createElement('div');
     card.className = 'platform-card';
     card.innerHTML = `
       <div class="p-header" style="background:${cfg.color}">${cfg.label}<small>${cfg.hint}</small></div>
       <div class="drop-zone" id="dz-${key}">
         <span style="font-size:18px">📂</span>
-        <span>${cfg.multi?'여러 파일':'파일 드롭'}</span>
+        <span>${cfg.multi?'여러 파일':'파일 드롭(여러 개 가능)'}</span>
         <input type="file" accept="${accept}" ${multiAttr} id="fi-${key}">
       </div>
       <div class="p-status" id="ps-${key}">대기 중</div>
@@ -1028,10 +1028,35 @@ function matchExt(name, accept) {
   return exts.some(e => name.toLowerCase().endsWith(e));
 }
 
+// ★2026-11-23 광고 파일: 하나의 날짜에는 하나의 파일 값만 — 날짜가 겹치면 나중 파일(수정시각 기준, 같으면 나중에 올린 것)이 이긴다.
+//   예) 21~22일 파일 + 22~23일 파일 → 21일은 앞 파일, 22·23일은 뒤 파일. 겹치지 않는 날짜는 그대로 남는다.
+//   grp = 묶음 키(기본 날짜). 네이버는 날짜+광고종류(파워링크/쇼핑검색/브랜드검색)로 묶는다 — 종류별로 따로 받은 파일끼리 안 지우게.
+//   수정시각은 메모리에만 둔다(저장·시트로 안 나감). 불러온 저장값은 시각 0이라 새 파일이 이긴다.
+function mergeFileRows(key, rows, ts, grp){
+  const g = grp || (r=>r.date);
+  const st = (state._fileTs = state._fileTs || {}), m = (st[key] = st[key] || {});
+  const fresh = {}; rows.forEach(r=>{ (fresh[g(r)] = fresh[g(r)] || []).push(r); });
+  const old = state.processed[key] || [], had = new Set(old.map(g));
+  const drop = new Set(), add = [], older = [];
+  Object.keys(fresh).forEach(k=>{
+    if((m[k]||0) > ts){ older.push(k); return; }     // 이미 더 나중 파일 값이 있다 → 이 파일의 그 날짜는 쓰지 않는다
+    drop.add(k); m[k] = ts; add.push(...fresh[k]);
+  });
+  state.processed[key] = old.filter(r=>!drop.has(g(r))).concat(add);
+  return {added:add.length, older:older, replaced:[...drop].filter(k=>had.has(k))};
+}
+function noteMerge(label, mg, fname){
+  const fm = a => [...new Set(a.map(k=>String(k).split('|')[0].slice(5)))].sort().join(', ');
+  const msgs = [];
+  if(mg.replaced.length) msgs.push(`겹친 날짜(${fm(mg.replaced)})는 나중 파일 값으로 바꿨어요`);
+  if(mg.older.length)    msgs.push(`${fname||'이 파일'}의 ${fm(mg.older)}는 이미 더 나중 파일 값이 있어 쓰지 않았어요`);
+  if(msgs.length) showToast('📎 '+label+': '+msgs.join(' · '));
+}
 function dispatch(key, files) {
+  files = [...files].sort((a,b)=>(a.lastModified||0)-(b.lastModified||0));   // 오래된 것부터 → 나중 파일이 이긴다
   if      (key === 'naver')  handleNaverFiles(files);
-  else if (key === 'gfa')    handleGFAZip(files[0]);
-  else                       handleStdFile(key, files[0]);
+  else if (key === 'gfa')    files.reduce((pr,f)=>pr.then(()=>handleGFAZip(f)), Promise.resolve());
+  else                       files.reduce((pr,f)=>pr.then(()=>handleStdFile(key, f)), Promise.resolve());
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1101,11 +1126,11 @@ async function handleStdFile(key, file) {
       showToast(`[${cfg.label}] 광고비 컬럼을 찾지 못했습니다.\n컬럼: ${headers.filter(h=>h).join(', ')}`);
       return;
     }
-    processStdFile(key, rows, hi, mapping);
+    processStdFile(key, rows, hi, mapping, file.lastModified||0, file.name);
   } catch(e){ setStat(key,'❌ '+e.message,'err'); console.error(e); }
 }
 
-function processStdFile(key, rows, hi, mapping) {
+function processStdFile(key, rows, hi, mapping, ts, fname) {
   const cfg = PLATFORMS[key]; const result=[];
   for(let i=hi+1;i<rows.length;i++){
     const row=rows[i];
@@ -1134,11 +1159,13 @@ function processStdFile(key, rows, hi, mapping) {
 
     result.push({date:rowDate,source,medium,campaign:camp,cost,buy,rev});
   }
-  state.processed[key]=result;
+  const _mg=mergeFileRows(key, result, ts||0);          // ★날짜 단위로 합침(통째 교체 아님)
+  noteMerge(PLATFORMS[key].label, _mg, fname);
+  const _all=state.processed[key]||[];
   if(result.length>0){
-    setFileSummary(key,result);
+    setFileSummary(key,_all);
     document.getElementById('dz-'+key)?.classList.add('loaded');
-    showFileSummaryToast(PLATFORMS[key].label, result);
+    showFileSummaryToast(PLATFORMS[key].label, _all);
   } else setStat(key,'⚠ 기간내 데이터 없음','warn');
 }
 
@@ -1152,9 +1179,10 @@ async function handleNaverFiles(files) {
     try{
       const rows = await readFile(file);
       const newRows = processNaverCSV(rows);
-      // 합산 없이 그대로 추가
-      state.processed.naver.push(...newRows);
-      addedCount+=newRows.length;
+      // ★2026-11-23 같은 날짜(+같은 광고종류)는 한 파일 값만 — 겹치면 나중 파일. (예전엔 그대로 이어 붙여 겹친 날짜가 두 번 들어갔음)
+      const _mg=mergeFileRows('naver', newRows, file.lastModified||0, r=>r.date+'|'+r.source);
+      noteMerge('NAVER SA/BS', _mg, file.name);
+      addedCount+=_mg.added;
       state.naverFileCount++;
     }catch(e){setStat('naver','❌ '+e.message,'err');console.error(e);return;}
   }
@@ -1251,7 +1279,7 @@ function processNaverCSV(rows) {
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // NaverGFA ZIP — 코어(ArrayBuffer 파싱). accumulate=true면 기존 결과에 누적(수집 다중일).
-async function processGFAArrayBuffer(ab, accumulate){
+async function processGFAArrayBuffer(ab, accumulate, ts, fname){
   if(typeof JSZip==='undefined'){setStat('gfa','❌ JSZip 로드 실패','err');return;}
   const zip=await JSZip.loadAsync(ab);
   let csvText=null;
@@ -1288,7 +1316,8 @@ async function processGFAArrayBuffer(ab, accumulate){
     result.push({date,source:'navergfa',medium:'da',campaign:camp,cost,buy,rev});
   }
   if(accumulate) state.processed.gfa.push(...result);
-  else           state.processed.gfa=result;
+  else if(ts!=null){ const _mg=mergeFileRows('gfa', result, ts); noteMerge('NAVER GFA', _mg, fname); }   // 파일 드롭
+  else           state.processed.gfa=result;                                                           // 수집서버 결과=교체
 
   const all=state.processed.gfa;
   if(all.length>0){
@@ -1302,7 +1331,7 @@ async function handleGFAZip(file) {
   setStat('gfa','읽는 중...','');
   try{
     const ab=await file.arrayBuffer();
-    await processGFAArrayBuffer(ab, false);   // 파일 드롭=교체
+    await processGFAArrayBuffer(ab, false, file.lastModified||0, file.name);   // 파일 드롭=날짜 단위로 합침(겹치면 나중 파일)
   }catch(e){setStat('gfa','❌ '+e.message,'err');console.error(e);}
 }
 
@@ -2219,7 +2248,7 @@ function loadDateIntoForm(date, silent){
   if(!document.querySelector('#oy-rows .mr')) addOYRow();
 
   // 파일 결과(메타/네이버/…) 복원
-  Object.keys(state.processed).forEach(k=>state.processed[k]=[]);
+  Object.keys(state.processed).forEach(k=>state.processed[k]=[]); state._fileTs={};
   if(slice.processed) Object.keys(slice.processed).forEach(k=>{ state.processed[k]=slice.processed[k]||[]; });
   state.naverFileCount=(state.processed.naver&&state.processed.naver.length)?1:0;
   restoreSSSlots(slice.ss||[], date);
@@ -2286,7 +2315,7 @@ function loadRangeIntoForm(dates){
   if(!document.querySelector('#gdn-rows .mr')) (currentBrand==='hattke'?addGDNPair():addGDNRow());
   if(!document.querySelector('#oy-rows .mr')) addOYRow();
   // 파일 결과(메타/틱톡/네이버/…) — 여러 날짜 병합
-  Object.keys(state.processed).forEach(k=>state.processed[k]=[]);
+  Object.keys(state.processed).forEach(k=>state.processed[k]=[]); state._fileTs={};
   slices.forEach(([d,slice])=>{ if(slice.processed) Object.keys(slice.processed).forEach(k=>{ state.processed[k]=(state.processed[k]||[]).concat(slice.processed[k]||[]); }); });
   state.naverFileCount=(state.processed.naver&&state.processed.naver.length)?1:0;
   // 스마트스토어 — 각 날짜 슬롯 순차 복원
@@ -2699,7 +2728,7 @@ function renderTabTable(date){
 // 플랫폼 초기화
 function resetPlatform(key){
   if(key==='naver'){state.naverFileCount=0;}
-  state.processed[key]=[];
+  state.processed[key]=[]; if(state._fileTs) delete state._fileTs[key];
   setStat(key,'대기 중','');
   document.getElementById('dz-'+key)?.classList.remove('loaded');
   const fi=document.getElementById('fi-'+key); if(fi) fi.value='';
@@ -3032,7 +3061,7 @@ async function runNaverCollect(auto){
   const label=dates.length===1?dates[0]:`${dates[0]} ~ ${dates[dates.length-1]} (${dates.length}일)`;
   if(!auto && !confirm(`네이버 SA 수집을 시작합니다 (${label}).\n계정 3개를 받아 날짜당 수 분 걸립니다. 진행할까요?`)) return;
   pushHistory();
-  state.processed.naver=[]; state.naverFileCount=0;   // 누적 초기화
+  state.processed.naver=[]; state.naverFileCount=0; if(state._fileTs) delete state._fileTs.naver;   // 누적 초기화
   let ok=0; const fail=[];
   for(let i=0;i<dates.length;i++){
     const date=dates[i];
@@ -7413,8 +7442,25 @@ function abClearHistory(){
             lab: one?days[0]:('최근 '+vals.length+'일 중앙값'),
             p1: vals[0], p1d: days[0], one: one};
   }
+  function cdN(v){ return Math.round(v).toLocaleString(); }
+  function cdCell(o){
+    if(!o) return '<span style="color:#cbd5e1">—</span>';
+    const up=o.cur>=o.base, col=up?'#dc2626':'#2563eb', pc=Math.round(Math.abs(o.r)*100);
+    return '<div class="cd-b">'+(o.baseLab.indexOf('중앙값')>=0?'기준 ':String(o.baseLab).slice(5)+' ')+cdN(o.base)+'</div>'
+      +'<div class="cd-c" style="color:'+col+'">'+cdN(o.cur)+' <span class="cd-p">'+(up?'▲':'▼')+pc+'%</span></div>'
+      +(o.p1>0?'<div class="cd-b">전일 '+cdN(o.p1)+'</div>':'')
+      +(o.gg?'<div class="cd-b">(가구매 제외)</div>':'');
+  }
   function cdPct(c,p){ const r=(c-p)/p; return (r>0?'+':'')+Math.round(r*100)+'%'; }
   // 기준 대비 판정 → 사람이 읽는 문구(아니면 ''). 중앙값 기준이 걸리면 전일 값도 함께 적는다.
+  // ★2026-11-23 수치를 화면에 바로 보이게(현황판 「변동 확인」 표) — 판정은 같고 결과를 객체로도 돌려준다
+  function cdCheckObj(cur, base, lab, floor){
+    if(!base || base.v<=0) return null;
+    if(Math.max(cur, base.v) < floor) return null;
+    if(Math.abs((cur-base.v)/base.v) < CD_DIFF_PCT/100) return null;
+    return {lab:lab, baseLab:base.lab, base:base.v, cur:cur, r:(cur-base.v)/base.v,
+            p1:(!base.one && base.p1>0)?base.p1:0, p1d:base.p1d};
+  }
   function cdCheck(cur, base, lab, floor){
     if(!base || base.v<=0) return '';
     if(Math.max(cur, base.v) < floor) return '';
@@ -7428,6 +7474,22 @@ function abClearHistory(){
   }
   // 현황판 셀용 — 그 매체의 광고비(cost)·매출(rev)을 각각 본다(없는 필드는 합이 0 → 자동 제외).
   //   m.gg가 있으면(쿠팡/스토어) 매출에서 그 날 가구매를 빼고 비교한다.
+  function cdDiffObjs(s, d, m){
+    const out={};
+    [['cost','광고비'],['rev','매출']].forEach(function(fl){
+      const val=function(ps, pd){
+        const a=m.g(ps);
+        if(!Array.isArray(a) || !a.length) return null;
+        let v=cdSum(a, fl[0]);
+        if(m.gg && fl[0]==='rev') v-=cdGgSum(ps.gagumae, pd, m.gg, 'amt');
+        return v>0 ? v : null;
+      };
+      const cur=val(s, d); if(cur==null) return;
+      const o=cdCheckObj(cur, cdBase(d, val), fl[1], CD_DIFF_FLOOR);
+      if(o){ o.gg=!!(m.gg && fl[0]==='rev'); out[fl[0]]=o; }
+    });
+    return out;
+  }
   function cdDiffMsg(s, d, m){
     const msgs=[];
     [['cost','광고비'],['rev','매출']].forEach(function(fl){
@@ -7623,6 +7685,18 @@ function abClearHistory(){
     }
     h+='<div class="cd-cap">'+bl+' · 값 있으면 ✅ 없으면 ❌ · <b style="color:#b45309">★=최근 '+CD_BASE_DAYS+'일 기준 '+CD_DIFF_PCT+'% 이상 변동(마우스 올리면 수치)</b> · 날짜 클릭=폼에 불러오기</div>';
     if(!ds.length){ body.innerHTML=h+'<div class="cd-empty">표시할 날짜가 없어요</div>'; return; }
+    // ★2026-11-23 변동이 있으면 광고비·매출 수치를 표로 바로 보여준다(예전엔 ★ 위에 마우스를 올려야 보였음)
+    const _dv=[];
+    ds.forEach(d=>{ const s=slice(d); if(!s) return;
+      MED.forEach(m=>{ if(!has(m.g(s))) return;
+        const o=cdDiffObjs(s, d, m);
+        if(o.cost||o.rev) _dv.push({d:d, label:m.label, cost:o.cost, rev:o.rev}); }); });
+    if(_dv.length){
+      h+='<div class="cd-dv"><div class="cd-dvh">⚠ 변동 확인 '+_dv.length+'건 <span>최근 '+CD_BASE_DAYS+'일 기준 '+CD_DIFF_PCT+'% 이상 · 날짜 누르면 폼에 불러옴</span></div>'
+        +'<table class="cd-dvt"><thead><tr><th>날짜</th><th>매체</th><th>광고비</th><th>매출</th></tr></thead><tbody>'
+        +_dv.map(x=>'<tr><td class="cd-dt" data-d="'+x.d+'">'+x.d.slice(5)+'</td><td><b>'+x.label+'</b></td><td class="cd-n">'+cdCell(x.cost)+'</td><td class="cd-n">'+cdCell(x.rev)+'</td></tr>').join('')
+        +'</tbody></table></div>';
+    }
     h+='<table><thead><tr><th>날짜</th>';
     MED.forEach(m=>h+='<th>'+m.label+'</th>');
     h+='</tr></thead><tbody>';
@@ -7686,6 +7760,14 @@ function abClearHistory(){
      +'#collect-dashboard td.cd-dt:hover{text-decoration:underline}'
      +'.cd-ok{color:#16a34a}.cd-no{color:#dc2626;background:#fef2f2}'
      +'.cd-diff{color:#b45309;background:#fffbeb;font-weight:800;cursor:help}'
+     +'.cd-dv{margin:2px 2px 8px;border:2px solid #f59e0b;border-radius:8px;background:#fffbeb;overflow:hidden}'
+     +'.cd-dvh{padding:5px 10px;font-weight:800;font-size:12px;color:#92400e;background:#fef3c7}'
+     +'.cd-dvh span{font-weight:500;font-size:10.5px;color:#a16207;margin-left:6px}'
+     +'#collect-dashboard .cd-dvt{background:#fff;width:auto;min-width:420px;margin:0}'
+     +'#collect-dashboard .cd-dvt th{padding:4px 14px}'
+     +'#collect-dashboard .cd-dvt td{font-size:12px;padding:4px 14px;vertical-align:top;text-align:left}'
+     +'#collect-dashboard .cd-dvt td.cd-n{min-width:150px;line-height:1.35}'
+     +'.cd-b{color:#94a3b8;font-size:10.5px}.cd-c{font-weight:800;font-size:13px}.cd-p{font-size:11px}'
      +'.cd-alert{background:#fef2f2;border:2px solid #dc2626;border-radius:8px;padding:8px 10px;margin:2px 2px 8px;color:#991b1b;font-weight:800;font-size:12px;line-height:1.5}'
      +'.cd-alert-b{font-weight:600;font-size:11.5px;margin-top:5px;color:#7f1d1d}'
      +'.cd-alert-s{font-weight:600;font-size:11px;margin-top:6px;color:#b91c1c}'
