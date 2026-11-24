@@ -1034,7 +1034,8 @@ function onDateRangeChange(){
 function buildGrid() {
   const grid = document.getElementById('platform-grid');
   grid.innerHTML = '';   // ★2026-10-27 두 번 불려도 카드가 두 벌 쌓이지 않게(웹판 첫 화면에서 브랜드 복원과 겹쳐 중복됐음)
-  Object.entries(PLATFORMS).forEach(([key, cfg]) => {
+  const _RDO=['tiktok','criteo','meta','naver','gfa','kakao'];   // ★2026-11-24 RD 시트 행 순서(틱톡·크리테오·메타·네이버·GFA·카카오)
+  Object.entries(PLATFORMS).sort((x,y)=>{const a=_RDO.indexOf(x[0]),b=_RDO.indexOf(y[0]);return (a<0?99:a)-(b<0?99:b);}).forEach(([key, cfg]) => {
     const accept = key==='gfa' ? '.zip' : '.xlsx,.xls,.csv';
     const multiAttr = 'multiple';   // ★2026-11-23 전 매체 여러 파일(날짜 겹치면 나중 파일 값)
     const card = document.createElement('div');
@@ -7679,16 +7680,16 @@ function abClearHistory(){
   //  ph = COLLECT_PHASES 의 매체명(스텝명)과 1:1. 이 매핑으로 '브랜드가 실제 수집하는 매체'만 컬럼에 띄운다.
   //  (2026-07-21) 그래니엔 GFA 없음 → GFA 컬럼 안 뜸. 베이스튠엔 크리·올영 없음 등. 미운영 매체 ❌ 방지.
   const DASH_MEDIA=[
-    {label:'구글', imp:['cost'],   ph:'구글',         g:s=>s.gdn},
-    {label:'메타', imp:['cost'],   ph:'메타',         g:s=>s.processed&&s.processed.meta},
-    {label:'틱톡', imp:['cost'],   ph:'틱톡',         g:s=>s.processed&&s.processed.tiktok},
-    {label:'네이버', imp:['cost'], ph:'네이버 SA',    g:s=>s.processed&&s.processed.naver},
-    {label:'GFA', imp:['cost'],    ph:'네이버 GFA',   g:s=>s.processed&&s.processed.gfa},
-    {label:'카카오', imp:['cost'], ph:'카카오',       g:s=>s.processed&&s.processed.kakao},
-    {label:'크리', imp:['cost'],   ph:'크리테오',     g:s=>s.processed&&s.processed.criteo},
     {label:'카페24', imp:['rev'], ph:'카페24',       g:s=>s.c24},
     {label:'쿠팡', imp:['cost','rev'],   ph:'쿠팡',         g:s=>s.cp, gg:'coupang'},
     {label:'스토어', imp:['rev'], ph:'스마트스토어', g:s=>s.ss, gg:'ss'},
+    {label:'틱톡', imp:['cost'],   ph:'틱톡',         g:s=>s.processed&&s.processed.tiktok},
+    {label:'크리', imp:['cost'],   ph:'크리테오',     g:s=>s.processed&&s.processed.criteo},
+    {label:'메타', imp:['cost'],   ph:'메타',         g:s=>s.processed&&s.processed.meta},
+    {label:'구글', imp:['cost'],   ph:'구글',         g:s=>s.gdn},
+    {label:'네이버', imp:['cost'], ph:'네이버 SA',    g:s=>s.processed&&s.processed.naver},
+    {label:'GFA', imp:['cost'],    ph:'네이버 GFA',   g:s=>s.processed&&s.processed.gfa},
+    {label:'카카오', imp:['cost'], ph:'카카오',       g:s=>s.processed&&s.processed.kakao},
     {label:'올영', imp:['rev'],   ph:'올리브영',     g:s=>s.oy},
   ];
   // 현재 브랜드가 실제 운영(=수집)하는 매체만. COLLECT_PHASES(단일 출처)에서 파생 → 매체 추가/삭제해도 자동 동기화.
