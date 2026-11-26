@@ -7978,6 +7978,25 @@ function abClearHistory(){
       });
     });
   }
+  // ★2026-11-26 광고 파일 행(날짜·구분·광고비·구매·매출)도 칸마다 ★ — 같은 구분의 최근 N일 평균과 비교
+  function cdMarkAdFiles(){
+    ['meta','tiktok','naver','gfa','kakao','criteo'].forEach(key=>{
+      document.querySelectorAll('#pr-'+key+' .mr[data-k]').forEach(el=>{
+        const d=el.dataset.d, g=el.dataset.g;
+        [['cost','광고비'],['rev','매출']].forEach(f=>{
+          const inp=el.querySelector('[data-f="'+f[0]+'"]'); if(!inp) return;
+          const cv=cdNum(inp.value); let msg='';
+          if(cv>0 && d){
+            const base=cdBase(d,(ps,pd)=>{ const a=ps.processed&&ps.processed[key]; if(!Array.isArray(a)) return null;
+              const v=a.filter(r=>pcGroup(key,r)===g).reduce((t,r)=>t+cdNum(r[f[0]]),0); return v>0?v:null; });
+            const m=cdCheck(cv, base, f[1]+'('+g+')', CD_DIFF_FLOOR);
+            if(m) msg='★ '+m+' — 수집값 확인 필요';
+          }
+          cdMark(inp,msg);
+        });
+      });
+    });
+  }
   // 스마트스토어는 입력칸이 아니라 슬롯 상태칩(원 금액)이라 거기에 표시
   function cdMarkSS(){
     document.querySelectorAll('#ss-slots .ss-slot').forEach(el=>{
@@ -8075,7 +8094,7 @@ function abClearHistory(){
     body.querySelectorAll('.cd-dt').forEach(td=>td.onclick=()=>{ try{ loadDateIntoForm(td.getAttribute('data-d')); }catch(e){} });
     body.querySelectorAll('td[data-ci]').forEach(td=>td.onclick=function(ev){ ev.stopPropagation(); cdShowPop(td); });
     if(_neg.length && isCollapsed()) setCollapsed(false);   // 접어놨어도 사고 나면 펴서 보여준다
-    try{ cdMarkInputs(); cdMarkSS(); }catch(e){}   // 입력칸 급변 표시도 같은 폴링에 얹음
+    try{ cdMarkInputs(); cdMarkSS(); cdMarkAdFiles(); }catch(e){}   // 입력칸 급변 표시도 같은 폴링에 얹음
   }
   window.renderCollectDashboard=render;
   document.addEventListener('click',function(e){ const p=document.getElementById('cd-pop'); if(p && !e.target.closest('#cd-pop')) p.style.display='none'; });
