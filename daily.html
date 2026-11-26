@@ -1988,46 +1988,34 @@ function processHattkeGoogleText(text){
     }
 
     const gnum=v=>{const s=String(v==null?'':v).replace(/"/g,'').replace(/,/g,'').trim(); if(s===''||s==='--')return 0; const n=parseFloat(s); return isNaN(n)?0:n;};
-    const tok=/(?:^|[^a-z])(ac|pb|pi|wp)(?:[^a-z]|$)/i;   // ★2026-10-28 wp=휘핑차렵
-    const agg={ac:{cost:0,conv:0,val:0,n:0},pb:{cost:0,conv:0,val:0,n:0},pi:{cost:0,conv:0,val:0,n:0},wp:{cost:0,conv:0,val:0,n:0},cv:{cost:0,conv:0,val:0,n:0}};
-    const unmatched=[];
+    // ★2026-11-26 해트케 구글 = 캠페인 이름 그대로 한 줄씩(제품은 엑셀 RD.U·_htWbU가 이름으로 판정).
+    //   예전엔 ac/pb/pi/wp 코드로 미리 제품별 합산 → 코드 없는 캠페인(mix 등)이 통째로 빠져 하루 40만원 누락.
+    const camps={};
     for(let i=hi+1;i<lines.length;i++){
       if(!lines[i].trim()) continue;
       const c=lines[i].split('\t');
       const name=(c[ci.camp]||'').replace(/"/g,'').trim();
-      if(!name) continue;
-      if(name==='--'||/^총/.test(name)) continue;   // 맨 아래 총계행 제외
-      const ovp=(window.__campProd||{})[name];   // ★2026-11-10 화면에서 정한 제품이 먼저
-      if(ovp){ const kk={아크넨패드:'ac',압력이불:'pb',더마텍소베개:'pi',휘핑차렵:'wp',압력커버:'cv'}[ovp];
-        const a=kk? agg[kk] : (agg['@'+ovp]=agg['@'+ovp]||{cost:0,conv:0,val:0,n:0});   // 그 밖의 제품은 제품 이름 행으로
-        a.cost+=gnum(c[ci.cost]); a.conv+=gnum(c[ci.conv]); a.val+=gnum(c[ci.val]); a.n++; continue; }
-      const m=name.toLowerCase().match(tok);
-      const isCv=/커버|cover/i.test(name);   // ★2026-10-16 압력이불커버 — pb보다 우선
-      if(!isCv && !(m && m[1].toLowerCase()==='pb')){   // ★2026-11-12 ac/pb/pi/wp 말고 다른 제품(구르미 gr·스트라이프 st·차렵 cr)은 제품 이름 행으로 — 엑셀 RD.U와 같은 판정
-        const p2=_htWbU(name);
-        if(p2 && !['아크넨패드','압력이불','더마텍소베개','휘핑차렵'].includes(p2) && /(^|_)(gr|st|cr)(_|$)|구르미|스트라|stripe|차렵/i.test(name)){
-          const a=(agg['@'+p2]=agg['@'+p2]||{cost:0,conv:0,val:0,n:0}); a.cost+=gnum(c[ci.cost]); a.conv+=gnum(c[ci.conv]); a.val+=gnum(c[ci.val]); a.n++; continue; }
-      }
-      if(!m && !isCv){ unmatched.push(name); continue; }
-      const k=isCv?'cv':m[1].toLowerCase();
-      agg[k].cost+=gnum(c[ci.cost]);
-      agg[k].conv+=gnum(c[ci.conv]);
-      agg[k].val +=gnum(c[ci.val]);
-      agg[k].n++;
+      if(!name||name==='--'||/^총/.test(name)) continue;   // 맨 아래 총계행 제외
+      const a=camps[name]=camps[name]||{cost:0,conv:0,val:0};
+      a.cost+=gnum(c[ci.cost]); a.conv+=gnum(c[ci.conv]); a.val+=gnum(c[ci.val]);
     }
+    const names=Object.keys(camps).filter(n=>camps[n].cost||camps[n].conv||camps[n].val);
 
     pushHistory();
     const r2=v=>Math.round(v*100)/100;
-    const MAP={ac:'아크넨',pb:'압력이불',pi:'베개'};   // ★2026-07-21 pb 라벨 '이불'→'압력이불'
-    Object.keys(MAP).forEach(k=>fillGdnRow(reportDate,MAP[k],r2(agg[k].cost),r2(agg[k].conv),r2(agg[k].val)));
-    if(agg.wp.n) fillGdnRow(reportDate,'휘핑차렵',r2(agg.wp.cost),r2(agg.wp.conv),r2(agg.wp.val));   // 엑셀 RD 라벨 '휘핑차렵'
-    if(agg.cv.n) fillGdnRow(reportDate,'압력커버',r2(agg.cv.cost),r2(agg.cv.conv),r2(agg.cv.val));   // 커버 캠페인 있을 때만 행 추가
-    Object.keys(agg).filter(k=>k[0]==='@').forEach(k=>fillGdnRow(reportDate,k.slice(1),r2(agg[k].cost),r2(agg[k].conv),r2(agg[k].val)));
+    // 같은 날짜의 옛 제품별 합산 행(아크넨·압력이불·베개…)과 같은 이름 행은 지우고 다시 채운다(이중 합산 방지)
+    const OLD=['아크넨','압력이불','베개','휘핑차렵','압력커버','아크넨패드','더마텍소베개','차렵이불','스트라이프차렵','구르미차렵'];
+    const box=document.getElementById('gdn-rows');
+    if(box && names.length) [...box.querySelectorAll('.mr')].forEach(el=>{
+      const c=(el.querySelector('.gdn-camp')?.value||'').trim();
+      if(el.querySelector('.gdn-date')?.value===reportDate && (OLD.includes(c)||names.includes(c)) && box.children.length>1) el.remove();
+    });
+    names.forEach(n=>fillGdnRow(reportDate,n,r2(camps[n].cost),r2(camps[n].conv),r2(camps[n].val)));
     fmtNumfmtAll();
 
     if(dz) dz.classList.add('loaded');
-    let msg=`✅ 구글 ${reportDate} 반영\n아크넨 ${agg.ac.n}건 · 압력이불 ${agg.pb.n}건 · 베개 ${agg.pi.n}건${agg.wp.n?` · 휘핑차렵 ${agg.wp.n}건`:''}${agg.cv.n?` · 압력커버 ${agg.cv.n}건`:''}`;
-    if(unmatched.length) msg+=`\n⚠ 미분류 ${unmatched.length}건(ac/pb/pi/wp 없음): ${unmatched.slice(0,3).join(', ')}${unmatched.length>3?' …':''}`;
+    const tot=names.reduce((t,n)=>t+camps[n].cost,0);
+    let msg=`✅ 구글 ${reportDate} 반영\n캠페인 ${names.length}개 · 광고비 합계 ${Math.round(tot).toLocaleString()}원`;
     showToast(msg);
   }catch(e){
     console.error(e);
